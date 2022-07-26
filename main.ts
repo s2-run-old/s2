@@ -110,7 +110,7 @@ const kData = Symbol("");
 
 type DomData = {};
 
-type DomSymbolIndex = {
+type DomDataIndex = {
   [key: symbol]: DomData;
 };
 
@@ -138,7 +138,7 @@ class DomBuilder {
   }
 
   data(v: DomData): DomBuilder {
-    (this.elem0() as unknown as DomSymbolIndex)[kData] = v;
+    (this.elem0() as unknown as DomDataIndex)[kData] = v;
     return this;
   }
 
@@ -158,6 +158,14 @@ class DomBuilder {
 
   flexCol(): DomBuilder {
     return this.cls("flex-col");
+  }
+
+  italic(): DomBuilder {
+    return this.cls("italic");
+  }
+
+  group(): DomBuilder {
+    return this.cls("group");
   }
 
   static list(v: DomBuilder[]): DomBuilder {
@@ -248,7 +256,7 @@ class Editor {
       })
     );
 
-    return b.group(cvar, cname.word(), ctype.word()).flexCol();
+    return b.list([cvar, cname.word(), ctype.word()]).flexCol();
   }
 
   renderDecls(ds: Decl[]): DomBuilder {
@@ -258,7 +266,7 @@ class Editor {
         if (ds[0] instanceof VarDecl) {
           return this.renderVarDeclGroup(ds as VarDecl[]);
         } else {
-          return b.group(...ds.map((d) => this.renderDecl(d)));
+          return b.list(ds.map((d) => this.renderDecl(d)));
         }
       })
     );
@@ -276,7 +284,7 @@ class Editor {
   }
 
   renderStructFields(ds: Decl[]): DomBuilder {
-    return DomBuilder.div("struct-fields", this.renderDecls(ds));
+    return DomBuilder.div("struct-fields", this.renderDecls(ds)).group();
   }
 
   renderStructDecl(d: StructDecl): DomBuilder {
@@ -340,10 +348,17 @@ class Editor {
     );
   }
 
+  renderAddNewDecl(): DomBuilder {
+    const b = DomBuilder;
+    return b.div("add-new-decl", b.text("Add..").italic());
+  }
+
   listenSelectionChange(
     cb: (selElem: HTMLElement, left: number, idx: number) => void
   ): () => void {
     const handler = () => {
+      console.log("selection change");
+
       const sel = document.getSelection()!;
       if (sel.rangeCount == 0) {
         return;
@@ -427,10 +442,16 @@ class Editor {
       }
     );
 
-    const dom = DomBuilder.div(
-      "editor",
-      this.renderStructFields(this.main.decls)
-    ).render();
+    const b = DomBuilder;
+    const dom = b
+      .div(
+        "editor",
+        b.group(
+          this.renderAddNewDecl(),
+          this.renderStructFields(this.main.decls)
+        )
+      )
+      .render();
 
     return {
       dom: dom,

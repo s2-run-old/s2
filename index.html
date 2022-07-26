@@ -14,20 +14,29 @@
         color: rgba(0, 0, 0, 1);
       }
 
-      .editor .select-none {
-        user-select: none;
+      .editor {
+        /*user-select: none;*/
+        cursor: default;
       }
 
       .editor .indent {
         margin-left: 30px;
       }
 
-      .editor .struct-fields .group:not(:first-child) {
+      .editor .italic {
+        font-style: italic;
+      }
+
+      .editor .group > div:not(:first-child) {
         margin-top: 30px;
       }
 
       .editor .word {
         margin-left: 10px;
+      }
+
+      .editor .text-edit {
+        user-select: text;
       }
 
       .editor .text {
