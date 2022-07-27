@@ -11,12 +11,12 @@
       }
 
       .editor ::selection {
-        color: rgba(0, 0, 0, 1);
+        text-shadow: none;
       }
 
       .editor {
         /*user-select: none;*/
-        cursor: default;
+        /*cursor: default;*/
       }
 
       .editor .indent {
@@ -78,10 +78,34 @@
         animation: 1s blink step-end infinite;
       }
 
+      .editor .string {
+        color: #260101;
+      }
+
+      .editor .keyword {
+        color: #8c0303;
+      }
+
+      .editor .punc {
+        color: #738c61;
+      }
+
+      .editor .ident {
+        color: #225473;
+      }
+
+      .editor .type {
+        color: #590202;
+      }
+
+      .editor .comment {
+        color: #8095bf;
+      }
+
       @keyframes blink {
         from,
         to {
-          background-color: cadetblue;
+          background-color: #738c61;
         }
         50% {
           background-color: transparent;

@@ -164,10 +164,6 @@ class DomBuilder {
     return this.cls("italic");
   }
 
-  group(): DomBuilder {
-    return this.cls("group");
-  }
-
   static list(v: DomBuilder[]): DomBuilder {
     return new DomBuilder(undefined, v);
   }
@@ -186,20 +182,32 @@ class DomBuilder {
     return div;
   }
 
-  static word(...v: DomBuilder[]): DomBuilder {
-    return this.div("word", ...v);
+  static keyword(s: string): DomBuilder {
+    return this.text(s).cls("keyword");
   }
 
-  static textw(s: string): DomBuilder {
-    return this.text(s).word();
+  static punc(s: string): DomBuilder {
+    return this.text(s).cls("punc");
+  }
+
+  static type(s: string): DomBuilder {
+    return this.text(s).cls("type");
+  }
+
+  static string(s: string): DomBuilder {
+    return this.text(s).cls("string");
+  }
+
+  static comment(s: string): DomBuilder {
+    return this.text(s).cls("comment");
+  }
+
+  static ident(s: string): DomBuilder {
+    return this.text(s).cls("ident");
   }
 
   static line(...v: DomBuilder[]): DomBuilder {
     return this.div("line", ...v).flexCol();
-  }
-
-  static group(...v: DomBuilder[]): DomBuilder {
-    return this.div("group", ...v);
   }
 }
 
@@ -240,13 +248,13 @@ class Editor {
     const cvar = b.div(
       "var",
       ...ds.map((_) => {
-        return b.text("var");
+        return b.keyword("var");
       })
     );
     const cname = b.div(
       "name",
       ...ds.map((d) => {
-        return b.text(d.name);
+        return b.ident(d.name);
       })
     );
     const ctype = b.div(
@@ -275,32 +283,32 @@ class Editor {
   renderVarType(t: Type): DomBuilder {
     const b = DomBuilder;
     if (t instanceof ArrayType) {
-      return b.list([b.text("[]"), this.renderVarType(t.x)]);
+      return b.list([b.punc("[]"), this.renderVarType(t.x)]);
     } else if (t instanceof Ident) {
-      return b.text(t.v);
+      return b.type(t.v);
     } else {
       return b.text("invalid Type");
     }
   }
 
   renderStructFields(ds: Decl[]): DomBuilder {
-    return DomBuilder.div("struct-fields", this.renderDecls(ds)).group();
+    return DomBuilder.div("struct-fields", this.renderDecls(ds));
   }
 
   renderStructDecl(d: StructDecl): DomBuilder {
     const b = DomBuilder;
     return b.div(
       "struct-decl",
-      b.line(b.text("struct"), b.textw(d.name), b.textw("{")),
+      b.line(b.keyword("struct"), b.ident(d.name).word(), b.punc("{").word()),
       b.indent(this.renderStructFields(d.decls)),
-      b.line(b.text("}"))
+      b.line(b.punc("}"))
     );
   }
 
   renderExpr(e: Expr): DomBuilder {
     const b = DomBuilder;
     if (e instanceof StringLit) {
-      return b.list([b.text('"'), b.text(e.v), b.text('"')]);
+      return b.list([b.punc('"'), b.string(e.v), b.punc('"')]);
     } else if (e instanceof Ident) {
       return b.text("Ident");
     } else if (e instanceof BinExpr) {
@@ -337,20 +345,20 @@ class Editor {
     return b.div(
       "func-decl",
       b.line(
-        b.text(d.type),
-        b.textw(d.name),
-        b.text("("),
-        b.text(")"),
-        b.textw("{")
+        b.keyword(d.type),
+        b.ident(d.name).word(),
+        b.punc("("),
+        b.punc(")"),
+        b.punc("{").word()
       ),
       b.indent(this.renderStmts(d.body.stmts)),
-      b.line(b.text("}"))
+      b.line(b.punc("}"))
     );
   }
 
   renderAddNewDecl(): DomBuilder {
     const b = DomBuilder;
-    return b.div("add-new-decl", b.text("Add..").italic());
+    return b.div("add-new-decl", b.comment("// Add..").italic());
   }
 
   listenSelectionChange(
@@ -446,10 +454,8 @@ class Editor {
     const dom = b
       .div(
         "editor",
-        b.group(
-          this.renderAddNewDecl(),
-          this.renderStructFields(this.main.decls)
-        )
+        this.renderAddNewDecl(),
+        this.renderStructFields(this.main.decls)
       )
       .render();
 
