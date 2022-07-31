@@ -11,30 +11,94 @@
 
 type Decl = FuncDecl | StructDecl | VarDecl;
 
-class StructChangeName {
-  before!: string;
-  after!: string;
-}
+//////
 
-class StructFieldChangeName {
-  before!: string;
-  after!: string;
-}
+// add field / remove field / filed type change
+// view fields
+// add param / remove param / param idx change / param type change
+// view func param
+// add func / remove func
+// view func
 
-class StructFieldChangeType {
-  before!: Type;
-  after!: Type;
-}
+type AstRequest = {};
 
-class StructAddField {
-  field!: Type;
-}
+type AstResponse = {};
 
-class StructRemoveField {
-  field!: string;
-}
+type Decl1 = StructDecl1 | FuncDecl1 | VarDecl1;
+
+type StructDecl1 = {
+  t: "struct";
+  name: string;
+  decls: Decl1[];
+};
+
+type FuncDecl1 = {
+  t: "func";
+  kind: "func" | "widget";
+  name: string;
+};
+
+type VarType1 = Ident1 | ArrayType1;
+
+type Ident1 = {
+  t: "ident";
+  val: string;
+};
+
+type ArrayType1 = {
+  t: "array";
+  elem: VarType1;
+};
+
+type VarDecl1 = {
+  t: "var";
+  name: string;
+  type: VarType1;
+};
+
+type Stmt1 = AssignStmt1;
+
+type AssignStmt1 = {
+  t: "assign";
+  op: "=" | ":=";
+  l: Expr1;
+  r: Expr1;
+};
+
+type Expr1 = StringExpr | StringLit1 | IntLit1 | FloatLit1 | UnaryExpr1;
+
+type UnaryOp1 = "+" | "-";
+
+type UnaryExpr1 = {
+  t: "unary";
+  op: UnaryOp1;
+  e: Expr1;
+};
+
+type StringExpr = {
+  t: "string";
+  list: Expr1[];
+};
+
+type StringLit1 = {
+  t: "string-lit";
+  val: string;
+};
+
+type IntLit1 = {
+  t: "int-lit";
+  val: string;
+};
+
+type FloatLit1 = {
+  t: "float-lit";
+  val: string;
+};
+
+//////
 
 class StructDecl {
+  pos!: Node;
   name!: string;
   decls!: Decl[];
   constructor(init?: Partial<StructDecl>) {
@@ -57,7 +121,7 @@ class VarDecl {
   constructor(public name: string, public type: Type) {}
 }
 
-type Type = ArrayType | Ident;
+type Type = ArrayType | Ident | StructDecl;
 
 class ArrayType {
   constructor(public x: Type) {}
@@ -106,16 +170,25 @@ class BlockStmt {
   constructor(public stmts: Stmt[]) {}
 }
 
-const kData = Symbol("");
+type AstNode = Stmt | Expr | Decl;
 
-type DomData = {};
-
-type DomDataIndex = {
-  [key: symbol]: DomData;
+const kNodeData = Symbol("");
+type NodeDataV = {
+  selectCb?: DBSelectCb;
+};
+type NodeDataI = {
+  [key: symbol]: NodeDataV;
 };
 
-class DomBuilder {
-  constructor(private elem?: Node, private childv: DomBuilder[] = []) {}
+type DBSelectCb = (offset?: number) => void;
+
+class DBNode {
+  constructor(
+    public b: DomBuilder,
+    public elem?: Node,
+    public childNodes: DBNode[] = [],
+    public selectCb?: DBSelectCb
+  ) {}
 
   private elem0(): HTMLElement {
     if (!this.elem) {
@@ -126,96 +199,106 @@ class DomBuilder {
 
   private render0(parent: Node) {
     this.elem && parent.appendChild(this.elem);
-    this.childv.forEach((c) => c.render0(this.elem || parent));
+    this.childNodes.forEach((c) => c.render0(this.elem || parent));
+    if (this.selectCb) {
+      (this.elem as unknown as NodeDataI)[kNodeData] = {
+        selectCb: this.selectCb,
+      };
+    }
   }
 
   render(): Node {
     const div = this.elem0();
-    this.childv.forEach((c) => {
-      c.render0(div);
+    this.childNodes.forEach((c) => {
+      c && c.render0(div);
     });
+
     return div;
   }
 
-  data(v: DomData): DomBuilder {
-    (this.elem0() as unknown as DomDataIndex)[kData] = v;
+  child(...v: DBNode[]): DBNode {
+    this.childNodes = v;
     return this;
   }
 
-  child(...v: DomBuilder[]): DomBuilder {
-    this.childv = v;
-    return this;
-  }
-
-  cls(...cls: string[]): DomBuilder {
+  cls(...cls: string[]): DBNode {
     this.elem0().classList.add(...cls);
     return this;
   }
 
-  word(): DomBuilder {
+  word(): DBNode {
     return this.cls("word");
   }
 
-  flexCol(): DomBuilder {
-    return this.cls("flex-col");
-  }
-
-  italic(): DomBuilder {
+  italic(): DBNode {
     return this.cls("italic");
   }
 
-  static list(v: DomBuilder[]): DomBuilder {
-    return new DomBuilder(undefined, v);
+  select(cb: DBSelectCb): DBNode {
+    this.selectCb = cb;
+    return this;
+  }
+}
+
+class DomBuilder {
+  handleSelect(elem: Node, offset: number) {
+    (elem as unknown as NodeDataI)[kNodeData]?.selectCb?.(offset);
   }
 
-  static div(c: string, ...v: DomBuilder[]): DomBuilder {
-    return new DomBuilder(document.createElement("div")).child(...v).cls(c);
+  list(v: DBNode[]): DBNode {
+    return new DBNode(this, undefined, v);
   }
 
-  static indent(...v: DomBuilder[]): DomBuilder {
+  div(c: string, ...v: DBNode[]): DBNode {
+    return new DBNode(this, document.createElement("div")).child(...v).cls(c);
+  }
+
+  indent(...v: DBNode[]): DBNode {
     return this.div("indent", ...v);
   }
 
-  static text(s: string): DomBuilder {
+  text(s: string): DBNode {
     const div = this.div("text");
-    (div.elem as HTMLElement).innerText = s;
+    (div.elem as HTMLElement).innerHTML = s;
     return div;
   }
 
-  static keyword(s: string): DomBuilder {
+  keyword(s: string): DBNode {
     return this.text(s).cls("keyword");
   }
 
-  static punc(s: string): DomBuilder {
+  punc(s: string): DBNode {
     return this.text(s).cls("punc");
   }
 
-  static type(s: string): DomBuilder {
+  type(s: string): DBNode {
     return this.text(s).cls("type");
   }
 
-  static string(s: string): DomBuilder {
+  string(s: string): DBNode {
     return this.text(s).cls("string");
   }
 
-  static comment(s: string): DomBuilder {
+  comment(s: string): DBNode {
     return this.text(s).cls("comment");
   }
 
-  static ident(s: string): DomBuilder {
+  ident(s: string): DBNode {
     return this.text(s).cls("ident");
   }
 
-  static line(...v: DomBuilder[]): DomBuilder {
-    return this.div("line", ...v).flexCol();
+  line(...v: DBNode[]): DBNode {
+    return this.div("line", ...v);
   }
 }
 
 class Editor {
   main: StructDecl;
 
-  renderDecl(d: Decl): DomBuilder {
-    const b = DomBuilder;
+  db = new DomBuilder();
+
+  renderOtherDecl(d: Decl): DBNode {
+    const b = this.db;
     if (d instanceof StructDecl) {
       return this.renderStructDecl(d);
     } else if (d instanceof FuncDecl) {
@@ -242,71 +325,85 @@ class Editor {
     return groups;
   }
 
-  renderVarDeclGroup(ds: VarDecl[]): DomBuilder {
-    const b = DomBuilder;
-
-    const cvar = b.div(
-      "var",
-      ...ds.map((_) => {
-        return b.keyword("var");
-      })
-    );
-    const cname = b.div(
-      "name",
+  renderVarDeclGroup(ds: VarDecl[]): DBNode {
+    const b = this.db;
+    return b.div(
+      "var-decls",
       ...ds.map((d) => {
-        return b.ident(d.name);
-      })
-    );
-    const ctype = b.div(
-      "type",
-      ...ds.map((d) => {
-        return b.line(this.renderVarType(d.type));
-      })
-    );
-
-    return b.list([cvar, cname.word(), ctype.word()]).flexCol();
-  }
-
-  renderDecls(ds: Decl[]): DomBuilder {
-    const b = DomBuilder;
-    return b.list(
-      this.splitDeclGroups(ds).map((ds) => {
-        if (ds[0] instanceof VarDecl) {
-          return this.renderVarDeclGroup(ds as VarDecl[]);
-        } else {
-          return b.list(ds.map((d) => this.renderDecl(d)));
-        }
+        return b.list([
+          b.keyword("var"),
+          b.ident(d.name),
+          b.div("var-type", this.renderVarType(d.type)),
+        ]);
       })
     );
   }
 
-  renderVarType(t: Type): DomBuilder {
-    const b = DomBuilder;
+  renderDecls(ds: Decl[], pad: boolean = false): DBNode {
+    const b = this.db;
+
+    const group = (ds: Decl[]): DBNode => {
+      if (ds[0] instanceof VarDecl) {
+        return this.renderVarDeclGroup(ds as VarDecl[]);
+      } else {
+        return b.list(ds.map((d) => this.renderOtherDecl(d)));
+      }
+    };
+
+    const space = (): DBNode => {
+      return b.line(b.text("&nbsp;").cls("space"));
+    };
+
+    let a = this.splitDeclGroups(ds).map((ds, i, all) => {
+      const r = [group(ds)];
+      if (i < all.length - 1) {
+        r.push(space());
+      }
+      return b.list(r);
+    });
+
+    if (pad) {
+      a = a.slice();
+      a.unshift(space());
+      a.unshift(space());
+      a.push(space());
+      a.push(space());
+    }
+
+    return b.list(a);
+  }
+
+  renderVarType(t: Type): DBNode {
+    const b = this.db;
     if (t instanceof ArrayType) {
       return b.list([b.punc("[]"), this.renderVarType(t.x)]);
     } else if (t instanceof Ident) {
       return b.type(t.v);
+    } else if (t instanceof StructDecl) {
+      return b.type(t.name);
     } else {
       return b.text("invalid Type");
     }
   }
 
-  renderStructFields(ds: Decl[]): DomBuilder {
-    return DomBuilder.div("struct-fields", this.renderDecls(ds));
-  }
-
-  renderStructDecl(d: StructDecl): DomBuilder {
-    const b = DomBuilder;
+  renderStructDecl(d: StructDecl): DBNode {
+    const b = this.db;
     return b.div(
       "struct-decl",
-      b.line(b.keyword("struct"), b.ident(d.name).word(), b.punc("{").word()),
-      b.indent(this.renderStructFields(d.decls)),
+      b.line(
+        b.keyword("struct").select(() => {
+          console.log("select", d);
+        }),
+        b.ident(d.name).word(),
+        b.punc("{").word()
+      ),
+      b.indent(this.renderDecls(d.decls)),
       b.line(b.punc("}"))
     );
   }
 
-  renderExpr(e: Expr): DomBuilder {
-    const b = DomBuilder;
+  renderExpr(e: Expr): DBNode {
+    const b = this.db;
     if (e instanceof StringLit) {
       return b.list([b.punc('"'), b.string(e.v), b.punc('"')]);
     } else if (e instanceof Ident) {
@@ -318,13 +415,13 @@ class Editor {
     }
   }
 
-  renderAssignStmt(_: AssignStmt): DomBuilder {
-    const b = DomBuilder;
+  renderAssignStmt(_: AssignStmt): DBNode {
+    const b = this.db;
     return b.text("AssignStmt");
   }
 
-  renderStmt(stmt: Stmt): DomBuilder {
-    const b = DomBuilder;
+  renderStmt(stmt: Stmt): DBNode {
+    const b = this.db;
     if (stmt instanceof ExprStmt) {
       return b.line(this.renderExpr(stmt.e));
     } else if (stmt instanceof BlockStmt) {
@@ -336,12 +433,13 @@ class Editor {
     }
   }
 
-  renderStmts(stmts: Stmt[]): DomBuilder {
-    return DomBuilder.list(stmts.map((s) => this.renderStmt(s)));
+  renderStmts(stmts: Stmt[]): DBNode {
+    const b = this.db;
+    return b.list(stmts.map((s) => this.renderStmt(s)));
   }
 
-  renderFuncDecl(d: FuncDecl): DomBuilder {
-    const b = DomBuilder;
+  renderFuncDecl(d: FuncDecl): DBNode {
+    const b = this.db;
     return b.div(
       "func-decl",
       b.line(
@@ -357,7 +455,7 @@ class Editor {
   }
 
   listenSelectionChange(
-    cb: (selElem: HTMLElement, left: number, idx: number) => void
+    cb: (selElem: HTMLElement, left: number, offset: number) => void
   ): () => void {
     const handler = () => {
       const sel = document.getSelection()!;
@@ -376,7 +474,7 @@ class Editor {
       }
 
       let left: number;
-      let idx: number;
+      let offset: number;
       let selElem: HTMLElement;
 
       if (sel.focusNode == range0.endContainer) {
@@ -384,15 +482,27 @@ class Editor {
         left =
           rects[rects.length - 1].right -
           selElem.parentElement!.getBoundingClientRect().left;
-        idx = range0.endOffset;
+        offset = range0.endOffset;
       } else {
         selElem = range0.startContainer as HTMLElement;
         left =
           rects[0].left - selElem.parentElement!.getBoundingClientRect().left;
-        idx = range0.startOffset;
+        offset = range0.startOffset;
       }
 
-      cb(selElem, left, idx);
+      const parentElem = selElem.parentElement!;
+
+      if (parentElem.classList.contains("space") && offset != 0) {
+        const r = document.createRange();
+        r.setStart(selElem, 0);
+        r.setEnd(selElem, 0);
+        const s = window.getSelection()!;
+        s.removeAllRanges();
+        s.addRange(r);
+        return;
+      }
+
+      cb(selElem, left, offset);
     };
 
     document.addEventListener("selectionchange", handler);
@@ -438,14 +548,15 @@ class Editor {
     const setCursor = this.createCursor();
 
     const cleanup = this.listenSelectionChange(
-      (elem: HTMLElement, left: number, _: number) => {
+      (elem: HTMLElement, left: number, offset: number) => {
         setCursor(elem.parentElement!, left);
+        this.db.handleSelect(elem.parentElement as Node, offset);
       }
     );
 
-    const b = DomBuilder;
+    const b = this.db;
     const dom = b
-      .div("editor", this.renderStructFields(this.main.decls))
+      .div("editor", this.renderDecls(this.main.decls, true))
       .render();
 
     return {
@@ -456,15 +567,6 @@ class Editor {
 
   constructor(main: StructDecl) {
     this.main = main;
-
-    // setTimeout(() => {
-    //   const r = document.createRange();
-    //   r.setStart(textInner, 1);
-    //   r.setEnd(textInner, 2);
-    //   const s = window.getSelection()!;
-    //   s.removeAllRanges();
-    //   s.addRange(r);
-    // }, 500);
   }
 }
 
@@ -488,17 +590,22 @@ class EditorCss {
   indent = this.findRule(".editor .indent")!;
 }
 
+const builtinString = new Ident("string");
+const builtinBool = new Ident("bool");
+
+const StructItem = new StructDecl({
+  name: "Item",
+  decls: [
+    new VarDecl("content", builtinString),
+    new VarDecl("done", builtinBool),
+  ],
+});
+
 const main = new StructDecl({
   name: "",
   decls: [
-    new StructDecl({
-      name: "Item",
-      decls: [
-        new VarDecl("content", new Ident("string")),
-        new VarDecl("done", new Ident("bool")),
-      ],
-    }),
-    new VarDecl("items", new ArrayType(new Ident("Item"))),
+    StructItem,
+    new VarDecl("items", new ArrayType(StructItem)),
     new FuncDecl({
       type: "widget",
       name: "main",

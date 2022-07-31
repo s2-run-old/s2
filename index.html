@@ -6,17 +6,22 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>S²</title>
     <style>
+      #app {
+        height: 100%;
+        width: 50%;
+        height: 600px;
+        border: 1px solid gray;
+        border-radius: 8px;
+      }
+
       .editor {
         padding: 20px;
+        /*user-select: none;*/
+        /*cursor: default;*/
       }
 
       .editor ::selection {
         text-shadow: none;
-      }
-
-      .editor {
-        /*user-select: none;*/
-        /*cursor: default;*/
       }
 
       .editor .indent {
@@ -27,16 +32,12 @@
         font-style: italic;
       }
 
-      .editor .group > div:not(:first-child) {
-        margin-top: 30px;
-      }
-
       .editor .word {
         margin-left: 10px;
       }
 
       .editor .text-edit {
-        user-select: text;
+        /*user-select: text;*/
       }
 
       .editor .text {
@@ -45,7 +46,13 @@
         font-size: 20px;
       }
 
-      .editor .flex-col {
+      .editor .var-decls {
+        display: grid;
+        grid-template-columns: repeat(3, min-content);
+        grid-gap: 3px 10px;
+      }
+
+      .editor .var-decls .var-type {
         display: flex;
         flex-direction: row;
       }
@@ -57,6 +64,8 @@
 
       .editor .line {
         margin-bottom: 3px;
+        display: flex;
+        flex-direction: row;
       }
 
       .editor .input {
@@ -100,6 +109,14 @@
 
       .editor .comment {
         color: #8095bf;
+      }
+
+      .editor .sel-ident {
+        color: #f2d8c9;
+      }
+
+      .editor .sel-cursor {
+        color: #f2d8c9;
       }
 
       @keyframes blink {
