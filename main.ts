@@ -11,10 +11,6 @@
 // if|else -> Keyword
 // . -> SelExpr
 
-type Decl = FuncDecl | StructDecl | VarDecl;
-
-//////
-
 type StructDecl1 = {
   name: string;
   funcs: FuncDecl1[];
@@ -30,17 +26,31 @@ type FuncDecl1 = {
 
 type VarDecl1 = {
   name: string;
-  type: VarType1;
+  ty: ExprType;
 };
 
-type VarType1 = string | ArrayType1;
+type Stmt1 = AssignStmt1 | ExprStmt1 | IfStmt1 | BlockStmt1;
 
-type ArrayType1 = {
-  t: "array";
-  elem: VarType1;
+type IfBody = {
+  kind: "else-if" | "else";
+  cond: Expr1;
+  body: BlockStmt1;
 };
 
-type Stmt1 = AssignStmt1;
+type IfStmt1 = {
+  t: "if";
+  bodies: IfBody[];
+};
+
+type BlockStmt1 = {
+  t: "block";
+  stmts: Stmt1[];
+};
+
+type ExprStmt1 = {
+  t: "expr";
+  x: Expr1;
+};
 
 type AssignStmt1 = {
   t: "assign";
@@ -48,6 +58,37 @@ type AssignStmt1 = {
   x: Expr1;
   y: Expr1;
 };
+
+type MethodType = {
+  t: "method";
+  x: string;
+  y: string;
+};
+
+type ExprType =
+  | string
+  | {
+      t: "array";
+      x: string;
+    }
+  | {
+      t: "ptr";
+      x: string;
+    }
+  | {
+      t: "struct";
+      x: string;
+    }
+  | MethodType;
+
+type Expr1 =
+  | StringExpr
+  | StringLit1
+  | IntLit1
+  | FloatLit1
+  | UnaryExpr1
+  | BinExpr1
+  | CallExpr1;
 
 type BinOp1 =
   | "+"
@@ -64,124 +105,106 @@ type BinOp1 =
   | "&&"
   | "||";
 
-type Expr1 =
-  | StringExpr
-  | StringLit1
-  | IntLit1
-  | FloatLit1
-  | UnaryExpr1
-  | CallExpr1;
+type BinExpr1 = {
+  t: "bin";
+  ty: ExprType;
+  op: BinOp1;
+  x: Expr1;
+  y: Expr1;
+};
 
-type UnaryOp1 = "+" | "-";
+type UnaryOp1 = "+" | "-" | "&" | "*";
 
 type UnaryExpr1 = {
   t: "unary";
+  ty: ExprType;
   op: UnaryOp1;
-  e: Expr1;
+  x: Expr1;
 };
 
 type CallExpr1 = {
   t: "call";
+  ty: ExprType;
   x: Expr1;
   params: Expr1[];
 };
 
 type StringExpr = {
   t: "string";
+  ty: ExprType;
   list: Expr1[];
 };
 
 type StringLit1 = {
   t: "string-lit";
-  val: string;
+  ty: ExprType;
+  x: string;
 };
 
 type IntLit1 = {
   t: "int-lit";
-  val: string;
+  ty: ExprType;
+  x: string;
 };
 
 type FloatLit1 = {
   t: "float-lit";
-  val: string;
+  ty: ExprType;
+  x: string;
 };
 
-//////
+class AstFetcher {
+  constructor() {}
 
-class StructDecl {
-  pos!: Node;
-  name!: string;
-  decls!: Decl[];
-  constructor(init?: Partial<StructDecl>) {
-    Object.assign(this, init);
+  async allStructs(): Promise<StructDecl1[]> {
+    return Promise.resolve([
+      <StructDecl1>{
+        name: "main",
+        vars: [
+          <VarDecl1>{
+            name: "items",
+            ty: { t: "array", x: "Item" },
+          },
+        ],
+        funcs: [
+          <FuncDecl1>{
+            name: "main",
+            kind: "widget",
+          },
+        ],
+      },
+
+      <StructDecl1>{
+        name: "Item",
+        vars: [
+          <VarDecl1>{
+            name: "title",
+            ty: "string",
+          },
+          <VarDecl1>{
+            name: "content",
+            ty: "string",
+          },
+        ],
+      },
+    ]);
+  }
+
+  bodies: { [key: string]: BlockStmt1 } = {
+    "main.main": <BlockStmt1>{
+      t: "block",
+      stmts: [<ExprStmt1>{}],
+    },
+  };
+
+  async funcBody(ty: MethodType): Promise<BlockStmt1> {
+    const body = this.bodies[ty.x + "." + ty.y];
+    if (!body) {
+      return Promise.reject(new Error("no such func"));
+    }
+    return body;
   }
 }
-
-type FuncType = "widget" | "func";
-
-class FuncDecl {
-  type!: FuncType;
-  name!: string;
-  body!: BlockStmt;
-  constructor(init?: Partial<FuncDecl>) {
-    Object.assign(this, init);
-  }
-}
-
-class VarDecl {
-  constructor(public name: string, public type: Type) {}
-}
-
-type Type = ArrayType | Ident | StructDecl;
-
-class ArrayType {
-  constructor(public x: Type) {}
-}
-
-class StringLit {
-  constructor(public v: string) {}
-}
-
-class Ident {
-  constructor(public v: string) {}
-}
-
-type Expr = BinExpr | StringLit | Ident;
-
-type BinOp =
-  | "+"
-  | "-"
-  | "*"
-  | "/"
-  | "%"
-  | ">"
-  | "<"
-  | "<="
-  | ">="
-  | "=="
-  | "!="
-  | "&&"
-  | "||";
-
-class BinExpr {
-  constructor(public l: Expr, public op: BinOp, public r: Expr) {}
-}
-
-class AssignStmt {
-  constructor(public l: Expr, public r: Expr) {}
-}
-
-class ExprStmt {
-  constructor(public e: Expr) {}
-}
-
-type Stmt = BlockStmt | AssignStmt | ExprStmt;
-
-class BlockStmt {
-  constructor(public stmts: Stmt[]) {}
-}
-
-type AstNode = Stmt | Expr | Decl;
 
 const kNodeData = Symbol("");
 type NodeDataV = {
