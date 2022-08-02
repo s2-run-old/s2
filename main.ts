@@ -1,3 +1,5 @@
+// The Last Judgment
+
 // Init -> ExprStmt
 // Init -> IfStmt
 // ExprStmt -> AssignStmt
@@ -13,47 +15,29 @@ type Decl = FuncDecl | StructDecl | VarDecl;
 
 //////
 
-// add field / remove field / filed type change
-// view fields
-// add param / remove param / param idx change / param type change
-// view func param
-// add func / remove func
-// view func
-
-type AstRequest = {};
-
-type AstResponse = {};
-
-type Decl1 = StructDecl1 | FuncDecl1 | VarDecl1;
-
 type StructDecl1 = {
-  t: "struct";
   name: string;
-  decls: Decl1[];
+  funcs: FuncDecl1[];
+  vars: VarDecl1[];
 };
 
 type FuncDecl1 = {
-  t: "func";
-  kind: "func" | "widget";
   name: string;
+  kind: "func" | "widget";
+  params: VarDecl1[];
+  rets: VarDecl1[];
 };
 
-type VarType1 = Ident1 | ArrayType1;
-
-type Ident1 = {
-  t: "ident";
-  val: string;
+type VarDecl1 = {
+  name: string;
+  type: VarType1;
 };
+
+type VarType1 = string | ArrayType1;
 
 type ArrayType1 = {
   t: "array";
   elem: VarType1;
-};
-
-type VarDecl1 = {
-  t: "var";
-  name: string;
-  type: VarType1;
 };
 
 type Stmt1 = AssignStmt1;
@@ -61,11 +45,32 @@ type Stmt1 = AssignStmt1;
 type AssignStmt1 = {
   t: "assign";
   op: "=" | ":=";
-  l: Expr1;
-  r: Expr1;
+  x: Expr1;
+  y: Expr1;
 };
 
-type Expr1 = StringExpr | StringLit1 | IntLit1 | FloatLit1 | UnaryExpr1;
+type BinOp1 =
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "%"
+  | ">"
+  | "<"
+  | "<="
+  | ">="
+  | "=="
+  | "!="
+  | "&&"
+  | "||";
+
+type Expr1 =
+  | StringExpr
+  | StringLit1
+  | IntLit1
+  | FloatLit1
+  | UnaryExpr1
+  | CallExpr1;
 
 type UnaryOp1 = "+" | "-";
 
@@ -73,6 +78,12 @@ type UnaryExpr1 = {
   t: "unary";
   op: UnaryOp1;
   e: Expr1;
+};
+
+type CallExpr1 = {
+  t: "call";
+  x: Expr1;
+  params: Expr1[];
 };
 
 type StringExpr = {
