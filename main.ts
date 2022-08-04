@@ -26,7 +26,7 @@ type FuncDecl1 = {
 
 type VarDecl1 = {
   name: string;
-  ty: ExprType;
+  ty: VarType;
 };
 
 type Stmt1 = AssignStmt1 | ExprStmt1 | IfStmt1 | BlockStmt1;
@@ -59,27 +59,25 @@ type AssignStmt1 = {
   y: Expr1;
 };
 
-type MethodType = {
-  t: "method";
-  x: string;
-  y: string;
-};
-
-type ExprType =
+type VarType =
   | string
   | {
+      t: "struct";
+      x: VarType;
+    }
+  | {
       t: "array";
-      x: string;
+      x: VarType;
     }
   | {
       t: "ptr";
-      x: string;
+      x: VarType;
     }
   | {
-      t: "struct";
-      x: string;
-    }
-  | MethodType;
+      t: "func";
+      params: VarType[];
+      rets: VarType[];
+    };
 
 type Expr1 =
   | StringExpr
@@ -88,7 +86,21 @@ type Expr1 =
   | FloatLit1
   | UnaryExpr1
   | BinExpr1
-  | CallExpr1;
+  | CallExpr1
+  | Ident1
+  | SelExpr1;
+
+type Ident1 = {
+  t: "ident";
+  x: string;
+  ty: VarType;
+};
+
+type SelExpr1 = {
+  t: "sel";
+  x: Expr1;
+  sel: Ident1[];
+};
 
 type BinOp1 =
   | "+"
@@ -107,7 +119,7 @@ type BinOp1 =
 
 type BinExpr1 = {
   t: "bin";
-  ty: ExprType;
+  ty: VarType;
   op: BinOp1;
   x: Expr1;
   y: Expr1;
@@ -117,41 +129,54 @@ type UnaryOp1 = "+" | "-" | "&" | "*";
 
 type UnaryExpr1 = {
   t: "unary";
-  ty: ExprType;
+  ty: VarType;
   op: UnaryOp1;
   x: Expr1;
 };
 
 type CallExpr1 = {
   t: "call";
-  ty: ExprType;
+  ty: VarType;
   x: Expr1;
-  params: Expr1[];
+  y: Expr1[] | BlockStmt1;
 };
 
 type StringExpr = {
   t: "string";
-  ty: ExprType;
+  ty: VarType;
   list: Expr1[];
 };
 
 type StringLit1 = {
   t: "string-lit";
-  ty: ExprType;
+  ty: VarType;
   x: string;
 };
 
 type IntLit1 = {
   t: "int-lit";
-  ty: ExprType;
+  ty: VarType;
   x: string;
 };
 
 type FloatLit1 = {
   t: "float-lit";
-  ty: ExprType;
+  ty: VarType;
   x: string;
 };
+
+type StructAddField = {
+  t: "op-add-field";
+  x: VarDecl1;
+};
+
+type AstOp = StructAddField;
+
+class AstCacheNode {}
+
+class AstCache {
+  oplog: AstOp[];
+}
 
 class AstFetcher {
   constructor() {}
@@ -193,12 +218,28 @@ class AstFetcher {
   bodies: { [key: string]: BlockStmt1 } = {
     "main.main": <BlockStmt1>{
       t: "block",
-      stmts: [<ExprStmt1>{}],
+      stmts: [
+        <ExprStmt1>{
+          t: "expr",
+          x: <CallExpr1>{
+            t: "call",
+            x: <SelExpr1>{
+              t: "sel",
+              x: <Ident1>{
+                t: "ident",
+                x: "items",
+                ty: { t: "struct", x: "Item" },
+              },
+              sel: [<Ident1>{ t: "ident", x: "map" }],
+            },
+          },
+        },
+      ],
     },
   };
 
-  async funcBody(ty: MethodType): Promise<BlockStmt1> {
-    const body = this.bodies[ty.x + "." + ty.y];
+  async funcBody(struct: string, method: string): Promise<BlockStmt1> {
+    const body = this.bodies[struct + "." + method];
     if (!body) {
       return Promise.reject(new Error("no such func"));
     }
@@ -327,7 +368,7 @@ class DomBuilder {
 }
 
 class Editor {
-  main: StructDecl;
+  fetcher: AstFetcher;
 
   db = new DomBuilder();
 
@@ -589,9 +630,11 @@ class Editor {
     );
 
     const b = this.db;
-    const dom = b
-      .div("editor", this.renderDecls(this.main.decls, true))
-      .render();
+    const dom = b.div("editor").render();
+
+    (async () => {
+      (await this.fetcher.allStructs()).forEach((s) => {});
+    })();
 
     return {
       dom: dom,
@@ -599,8 +642,8 @@ class Editor {
     };
   }
 
-  constructor(main: StructDecl) {
-    this.main = main;
+  constructor(fetcher: AstFetcher) {
+    this.fetcher = fetcher;
   }
 }
 
@@ -623,30 +666,6 @@ class EditorCss {
   text = this.findRule(".editor .text")!;
   indent = this.findRule(".editor .indent")!;
 }
-
-const builtinString = new Ident("string");
-const builtinBool = new Ident("bool");
-
-const StructItem = new StructDecl({
-  name: "Item",
-  decls: [
-    new VarDecl("content", builtinString),
-    new VarDecl("done", builtinBool),
-  ],
-});
-
-const main = new StructDecl({
-  name: "",
-  decls: [
-    StructItem,
-    new VarDecl("items", new ArrayType(StructItem)),
-    new FuncDecl({
-      type: "widget",
-      name: "main",
-      body: new BlockStmt([new ExprStmt(new StringLit("hello world"))]),
-    }),
-  ],
-});
 
 const editor = new Editor(main);
 document.querySelector<HTMLDivElement>("#app")!.appendChild(editor.mount().dom);
