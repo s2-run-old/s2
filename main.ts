@@ -78,19 +78,18 @@ type StringExpr = {
   list: Expr[];
 };
 
-type SuffixExpr = {
-  op: "." | "()" | "{}" | "+" | "-" | "*" | "/" | "%" | "&&" | "||" | "!=";
-  x: Expr;
+type OpExpr = {
+  op: "" | "." | "()" | "{}" | "+" | "-" | "*" | "/" | "%" | "&&" | "||" | "!=";
+  x: Expr | Stmt1;
 };
 
 type PrefixOp = "-" | "+" | "!" | "&" | "*";
 
 type ChainExpr = {
   t: "chain";
-  op: "" | "()";
+  brace: boolean;
   prefix?: PrefixOp[];
-  x: Expr;
-  suffix?: SuffixExpr[];
+  list: OpExpr[];
 };
 
 type Expr = SingleExpr | ChainExpr;
@@ -120,61 +119,57 @@ type FloatLit1 = {
   x: string;
 };
 
-class LineView {
-  x: Expr;
-}
-
-class ExprView {
-  x: Expr;
-  v?: HTMLElement;
-
-  parent?: ExprView;
-  child?: ExprView[];
-
-  lineIdx = 0;
-  lineOff = 0;
-  lines: number[] = [];
-
-  layout(firstLineSize: number, lineSize: number) {
-    const tx = this.x;
-
-    switch (tx.t) {
-      case "string": {
-        break;
-      }
-
-      case "chain": {
-        let ci = 0;
-        const child = this.child!;
-
-        // first line
-        let w = 0;
-        while (ci < child.length) {
-          if (child[ci].lines.length == 1) {
-            w += child[ci].lines[0];
-          } else {
-            child[ci].lines[0];
-          }
-        }
-
-        break;
-      }
-
-      case "ident":
-      case "int-lit":
-      case "string-lit":
-      case "float-lit": {
-        this.wc = tx.x.length;
-        this.nl = 1;
-        break;
-      }
-    }
-  }
-}
-
-class StmtView {
-  constructor() {}
-}
+// class ExprView {
+//   x: Expr;
+//   v?: HTMLElement;
+//
+//   parent?: ExprView;
+//   child?: ExprView[];
+//
+//   lineIdx = 0;
+//   lineOff = 0;
+//   lines: number[] = [];
+//
+//   layout() {
+//     const tx = this.x;
+//
+//     switch (tx.t) {
+//       case "string": {
+//         break;
+//       }
+//
+//       case "chain": {
+//         let ci = 0;
+//         const child = this.child!;
+//
+//         // first line
+//         let w = 0;
+//         while (ci < child.length) {
+//           if (child[ci].lines.length == 1) {
+//             w += child[ci].lines[0];
+//           } else {
+//             child[ci].lines[0];
+//           }
+//         }
+//
+//         break;
+//       }
+//
+//       case "ident":
+//       case "int-lit":
+//       case "string-lit":
+//       case "float-lit": {
+//         this.wc = tx.x.length;
+//         this.nl = 1;
+//         break;
+//       }
+//     }
+//   }
+// }
+//
+// class StmtView {
+//   constructor() {}
+// }
 
 // class DOMData {
 //   static get(d: VNode): DOMDataV {
@@ -191,99 +186,114 @@ class StmtView {
 //   [key: symbol]: DOMDataV;
 // };
 
-class AstRender {
-  static div(typ: string, ref: string, text = ""): HTMLElement {
-    const div = document.createElement("div");
-    div.classList.add(typ);
-    div.setAttribute("type", typ);
-    div.setAttribute("ref", ref);
-    div.innerText = text;
-    return div;
-  }
+// class AstRender {
+//   static div(typ: string, ref: string, text = ""): HTMLElement {
+//     const div = document.createElement("div");
+//     div.classList.add(typ);
+//     div.setAttribute("type", typ);
+//     div.setAttribute("ref", ref);
+//     div.innerText = text;
+//     return div;
+//   }
+//
+//   static op(op: string, ref: string): HTMLElement {
+//     return this.div("op", ref, op);
+//   }
+//
+//   static expr(a: Expr1, ref: string): HTMLElement[] {
+//     switch (a.t) {
+//       case "bin": {
+//         const d: HTMLElement[] = [];
+//         a.list.forEach((a, idx) => {
+//           if (idx > 0) {
+//             d.push(this.op(a.op, ref + ".list." + idx + ".op"));
+//           }
+//           d.push(...this.expr(a.x, ref + ".list." + idx + ".x"));
+//         });
+//         return d;
+//       }
+//
+//       case "string": {
+//         const lquote = this.div("quote", ref + ".lquote", '"');
+//         const rquote = this.div("quote", ref + ".rquote", '"');
+//         const d: HTMLElement[] = [lquote];
+//         a.list.forEach((a, idx) => {
+//           d.push(...this.expr(a, ref + ".list." + idx));
+//         });
+//         d.push(rquote);
+//         return d;
+//       }
+//
+//       case "ident": {
+//         return [this.div("ident", ref, a.x)];
+//       }
+//
+//       case "sel": {
+//         // a.c.c.d()().sss()(1+3+4)().a.a.a + 1*13*3*(a+b)
+//         // width is not ok, should use text adjust width
+//         return [];
+//       }
+//
+//       case "call": {
+//         const d = this.expr(a.x, ref + ".x");
+//         const lbrace = this.div("brace", ref + ".lbrace", "(");
+//         const rbrace = this.div("brace", ref + ".rbrace", ")");
+//         d.push(lbrace);
+//         a.list.forEach((x, idx) => {
+//           d.push(...this.expr(x, ref + ".list."));
+//           if (idx < a.list.length) {
+//             const comma = this.div("comma", ref + ".comma", ",");
+//             d.push(comma);
+//           }
+//         });
+//         d.push(rbrace);
+//         return d;
+//       }
+//
+//       default:
+//         return [this.div("unknown-expr", ref)];
+//     }
+//   }
+//
+//   static stmt(a: Stmt1, ref: string): HTMLElement {
+//     switch (a.t) {
+//       case "assign": {
+//         const d = this.div("assign", ref);
+//         return d;
+//       }
+//
+//       case "expr": {
+//         const d = this.div("expr", ref);
+//         return d;
+//       }
+//
+//       case "block": {
+//         const d = this.div("block", ref);
+//         a.stmts.forEach((a, idx) =>
+//           document.appendChild(this.stmt(a, ".stmts." + idx))
+//         );
+//         return d;
+//       }
+//
+//       default:
+//         return this.div("unknown-stmt", ref);
+//     }
+//   }
+// }
 
-  static op(op: string, ref: string): HTMLElement {
-    return this.div("op", ref, op);
-  }
+function newIdent(x: string): Ident1 {
+  return <Ident1>{ t: "ident", x: x };
+}
 
-  static expr(a: Expr1, ref: string): HTMLElement[] {
-    switch (a.t) {
-      case "bin": {
-        const d: HTMLElement[] = [];
-        a.list.forEach((a, idx) => {
-          if (idx > 0) {
-            d.push(this.op(a.op, ref + ".list." + idx + ".op"));
-          }
-          d.push(...this.expr(a.x, ref + ".list." + idx + ".x"));
-        });
-        return d;
-      }
+function newChainExpr(list: OpExpr[]): ChainExpr {
+  return <ChainExpr>{
+    t: "chain",
+    list: list,
+  };
+}
 
-      case "string": {
-        const lquote = this.div("quote", ref + ".lquote", '"');
-        const rquote = this.div("quote", ref + ".rquote", '"');
-        const d: HTMLElement[] = [lquote];
-        a.list.forEach((a, idx) => {
-          d.push(...this.expr(a, ref + ".list." + idx));
-        });
-        d.push(rquote);
-        return d;
-      }
-
-      case "ident": {
-        return [this.div("ident", ref, a.x)];
-      }
-
-      case "sel": {
-        // a.c.c.d()().sss()(1+3+4)().a.a.a + 1*13*3*(a+b)
-        // width is not ok, should use text adjust width
-        return [];
-      }
-
-      case "call": {
-        const d = this.expr(a.x, ref + ".x");
-        const lbrace = this.div("brace", ref + ".lbrace", "(");
-        const rbrace = this.div("brace", ref + ".rbrace", ")");
-        d.push(lbrace);
-        a.list.forEach((x, idx) => {
-          d.push(...this.expr(x, ref + ".list."));
-          if (idx < a.list.length) {
-            const comma = this.div("comma", ref + ".comma", ",");
-            d.push(comma);
-          }
-        });
-        d.push(rbrace);
-        return d;
-      }
-
-      default:
-        return [this.div("unknown-expr", ref)];
-    }
-  }
-
-  static stmt(a: Stmt1, ref: string): HTMLElement {
-    switch (a.t) {
-      case "assign": {
-        const d = this.div("assign", ref);
-        return d;
-      }
-
-      case "expr": {
-        const d = this.div("expr", ref);
-        return d;
-      }
-
-      case "block": {
-        const d = this.div("block", ref);
-        a.stmts.forEach((a, idx) =>
-          document.appendChild(this.stmt(a, ".stmts." + idx))
-        );
-        return d;
-      }
-
-      default:
-        return this.div("unknown-stmt", ref);
-    }
-  }
+function newExprStmt(x: Expr): ExprStmt1 {
+  return <ExprStmt1>{ t: "expr", x: x };
 }
 
 class AstFetcher {
@@ -320,21 +330,13 @@ class AstFetcher {
     "main.main": <BlockStmt1>{
       t: "block",
       stmts: [
-        <ExprStmt1>{
-          t: "expr",
-          x: <CallExpr1>{
-            t: "call",
-            x: <SelExpr1>{
-              t: "sel",
-              x: <Ident1>{
-                t: "ident",
-                x: "items",
-                ty: 1,
-              },
-              sel: [<Ident1>{ t: "ident", x: "map" }],
-            },
-          },
-        },
+        newExprStmt(
+          newChainExpr([
+            { op: "", x: newIdent("items") },
+            { op: ".", x: newIdent("map") },
+            { op: "{}", x: newIdent("i") },
+          ])
+        ),
       ],
     },
   };
