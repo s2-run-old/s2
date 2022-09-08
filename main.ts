@@ -199,15 +199,17 @@ class Render {
   static newText(v: string): TextDiv {
     const div = document.createElement("div") as TextDiv;
     div.classList.add("text");
-    const text = document.createTextNode(v);
-    div.appendChild(text);
-    div._text = text;
-    if (div._text.textContent != v) {
-      div._text.textContent = v;
-    }
     div.setText = (v) => {
-      div._text.textContent = v;
+      if (!div._text || div._text.textContent != v) {
+        if (div._text) {
+          div._text.remove();
+        }
+        const text = document.createTextNode(v);
+        div.appendChild(text);
+        div._text = text;
+      }
     };
+    div.setText(v);
     return div;
   }
 
@@ -691,10 +693,10 @@ class TextSelect {
   document.querySelector<HTMLDivElement>("#app")!.appendChild(editor);
 
   const ts = new TextSelect();
-  ts.select(lines[6][3], lines[9][5]);
+  ts.select(lines[6][3], lines[6][4]);
 
   const ts2 = new TextSelect();
   ts2.select(lines[1][3], lines[5][1]);
 
-  lines[8][4].setText("111111");
+  lines[6][3].setText("1133");
 }
