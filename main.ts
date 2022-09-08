@@ -187,25 +187,27 @@ class ViewAppender {
   }
 }
 
-class TextDiv extends HTMLElement {
+interface TextDiv extends HTMLDivElement {
   _up: any;
-  _text!: Text;
+  _text: Text;
+  setText: (v: string) => void;
 }
 
 class Render {
   va?: ViewAppender;
 
-  newText(div: TextDiv | undefined, v: string): TextDiv {
-    if (!div) {
-      div = document.createElement("div") as DynObj as TextDiv;
-      div.classList.add("text");
-      const text = document.createTextNode(v);
-      div.appendChild(text);
-      div._text = text;
-    }
+  static newText(v: string): TextDiv {
+    const div = document.createElement("div") as TextDiv;
+    div.classList.add("text");
+    const text = document.createTextNode(v);
+    div.appendChild(text);
+    div._text = text;
     if (div._text.textContent != v) {
       div._text.textContent = v;
     }
+    div.setText = (v) => {
+      div._text.textContent = v;
+    };
     return div;
   }
 
@@ -302,15 +304,15 @@ class Render {
     }
   }
 
-  emptyDiv(cls: string): TextDiv {
-    const div = this.newText(undefined, "");
+  static emptyDiv(cls: string): TextDiv {
+    const div = Render.newText("");
     div.classList.add(cls);
     return div;
   }
 
   emptyOpExpr(): OpExpr {
     const x = new Ident("");
-    const div = this.emptyDiv("placeholder-opexpr");
+    const div = Render.emptyDiv("placeholder-opexpr");
     this.va?.append(div);
     x.view = div;
     return new OpExpr("", x);
@@ -327,21 +329,25 @@ class Render {
       });
     } else if (e instanceof OpExpr) {
       e.up = up;
-      const div = this.newText(e.opView, e.op);
-      this.va?.append(div);
-      e.opView = div;
+      if (!e.opView) {
+        const div = Render.newText(e.op);
+        this.va?.append(div);
+        e.opView = div;
+      }
       this.initExpr0(e.x, new UpRef(e, OpExpr.kX));
     } else if (e instanceof Ident) {
       e.up = up;
-      const div = this.newText(e.view, e.x);
-      this.va?.append(div);
-      e.view = div;
+      if (!e.view) {
+        const div = Render.newText(e.x);
+        this.va?.append(div);
+        e.view = div;
+      }
     }
   }
 
   initExpr(e: Expr) {
     if (e instanceof ChainExpr) {
-      const div = this.emptyDiv("placeholder-line");
+      const div = Render.emptyDiv("placeholder-line");
       e.lines = new LinesView([div]);
       this.va = new ViewAppender(div);
       this.initExpr0(e, undefined);
@@ -628,8 +634,6 @@ class TextSelect {
 }
 
 {
-  const a = {};
-
   const editor = document.createElement("div");
   editor.classList.add("editor");
 
@@ -665,17 +669,15 @@ class TextSelect {
     state.doOp(op);
   }
 
-  const lines: HTMLElement[][] = [];
+  const lines: TextDiv[][] = [];
   const linedivs: HTMLElement[] = [];
   for (let i = 0; i < 20; i++) {
     const div = document.createElement("div");
     div.classList.add("line");
 
-    const line: HTMLElement[] = [];
+    const line: TextDiv[] = [];
     for (let j = 0; j < 20; j++) {
-      const text = document.createElement("div");
-      text.innerText = j.toString();
-      text.classList.add("text");
+      const text = Render.newText(j.toString());
       text.classList.add("word");
       div.appendChild(text);
       line.push(text);
@@ -692,17 +694,7 @@ class TextSelect {
   ts.select(lines[6][3], lines[9][5]);
 
   const ts2 = new TextSelect();
-  ts2.select(lines[1][3], lines[6][1]);
+  ts2.select(lines[1][3], lines[5][1]);
 
-  const textElem = (div: HTMLElement): Node | undefined => {
-    for (const i in div.childNodes) {
-      const n = div.childNodes[i];
-      if (n.nodeType == Node.TEXT_NODE) {
-        return n;
-      }
-    }
-    return undefined;
-  };
-
-  textElem(lines[8][4])!.nodeValue = "111111";
+  lines[8][4].setText("111111");
 }
