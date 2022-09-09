@@ -200,14 +200,15 @@ class Render {
     const div = document.createElement("div") as TextDiv;
     div.classList.add("text");
     div.setText = (v) => {
-      if (!div._text || div._text.textContent != v) {
-        if (div._text) {
-          div._text.remove();
-        }
-        const text = document.createTextNode(v);
-        div.appendChild(text);
-        div._text = text;
+      if (div._text && div._text.textContent == v) {
+        return;
       }
+      if (div._text) {
+        div._text.remove();
+      }
+      const text = document.createTextNode(v);
+      div.appendChild(text);
+      div._text = text;
     };
     div.setText(v);
     return div;
@@ -492,7 +493,7 @@ class TextSelect {
 
   newMidLineDiv(s: TextSelectState, id: number): HTMLElement {
     const div = this.newDiv(s.typMid());
-    const tdiv = div as DynObj as TextSelDiv;
+    const tdiv = div as TextSelDiv;
     tdiv._ts = this;
     tdiv._tsId = id;
     return div;
