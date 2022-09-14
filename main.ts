@@ -1,3 +1,5 @@
+import { Op } from "./state";
+
 interface DynObj {
   [key: string]: any;
 }
@@ -27,31 +29,39 @@ class DList<T> {
     return n;
   }
 
-  remove() {
-    this.prev.next = this.next;
-    this.next.prev = this.prev;
-    this.next = this;
-    this.prev = this;
+  static newList<T>(init: T[]) {
+    const list = new DList<T>();
+    init.forEach((v) => list.appendV(v));
+    return list;
+  }
+
+  remove(n: DList<T>) {
+    n.prev.next = n.next;
+    n.next.prev = n.prev;
+    n.next = n;
+    n.prev = n;
   }
 
   appendV(v: T) {
     this.append(DList.new<T>(v));
   }
 
-  insertAfterV(v: T) {
-    this.insertAfter(DList.new<T>(v));
+  insertAfterV(after: DList<T>, v: T) {
+    this.insertAfter(after, DList.new<T>(v));
   }
 
   append(n: DList<T>) {
-    this.prev.insertAfter(n);
+    this.insertAfter(this.prev, n);
   }
 
-  insertAfter(n: DList<T>) {
-    n.prev = this;
-    n.next = this.next;
-    this.next.prev = n;
-    this.next = n;
-    return n;
+  insertAfter(after: DList<T>, insert: DList<T>) {
+    (insert.v as unknown as UpRef).up = insert;
+    insert.up = this;
+    insert.prev = after;
+    insert.next = after.next;
+    after.next.prev = insert;
+    after.next = insert;
+    return insert;
   }
 
   forEach(cb: (x: DList<T>) => void) {
@@ -65,10 +75,85 @@ class DList<T> {
   }
 }
 
+class ExprTypeRef {
+  constructor(public name: string, public t: ExprType) {}
+}
+
+type ExprType = StructType | StringType | IntType;
+
+class StructType {
+  constructor(public fields: ExprTypeRef[] = []) {}
+}
+
+class IntType {
+  _t = "int";
+}
+
+class StringType {
+  _t = "string";
+}
+
+class InvalidType {
+  err = "unknown";
+}
+
+class ExprTypes {
+  static intType = new IntType();
+  static stringType = new StringType();
+
+  find(name: string): ExprType | undefined {
+    switch (name) {
+      case "int": {
+        return ExprTypes.intType;
+      }
+      case "string": {
+        return ExprTypes.stringType;
+      }
+    }
+    return undefined;
+  }
+}
+
+class Func {
+  constructor(
+    public params: DList<Field>,
+    public ret: ExprTypeRef,
+    public body: DList<Stmt>
+  ) {
+    this.params.up = this;
+    this.body.up = this;
+  }
+}
+
+class Field {
+  up?: any;
+  used: WeakSet<VarRef> = new WeakSet<VarRef>();
+  constructor(public x: string, public t: ExprTypeRef) {}
+}
+
+class DefineStmt {
+  up?: any;
+  typ?: ExprTypeRef;
+  used: WeakSet<VarRef> = new WeakSet<VarRef>();
+  constructor(public x: string, public y: Expr) {}
+}
+
+class AssignStmt {
+  up?: any;
+  constructor(public x: Expr, public y: Expr) {}
+}
+
+class ExprStmt {
+  up?: any;
+  constructor(public x: Expr) {}
+}
+
+type Stmt = ExprStmt | DefineStmt | AssignStmt;
+
 class ChainExpr {
   list: DList<OpExpr>;
-  up: any;
   brace: boolean = false;
+  up?: any;
 
   lines?: LinesView;
   lBraceDiv?: TextDiv;
@@ -77,38 +162,48 @@ class ChainExpr {
   static kBrace = "brace";
   static kList = "list";
 
-  constructor(listInit: OpExpr[] = []) {
-    const list = new DList<OpExpr>();
-    listInit.forEach((e) => {
-      list.appendV(e);
-    });
-    this.list = list;
+  constructor(
+    listInit: OpExpr[] = [],
+    public typ: ExprTypeRef | undefined = undefined
+  ) {
+    this.list = DList.newList<OpExpr>(listInit);
+    this.list.up = new UpRef(this, ChainExpr.kList);
+    this.list.v = new OpExpr("", new Ident(""));
   }
 }
 
-class Ident {
-  x: string;
-  up: any;
+class VarRef {
+  up?: any;
   view?: TextDiv;
+  constructor(public x: DefineStmt | Field) {}
+}
+
+class Ident {
+  up?: any;
+  view?: TextDiv;
+  typ?: ExprTypeRef;
 
   static kX = "x";
 
-  constructor(x: string) {
+  constructor(public x: string) {
     this.x = x;
   }
 }
 
 class OpExpr {
-  op: string;
-  x: Expr;
-  up: any;
+  up?: any;
   opView?: TextDiv;
 
   static kOp = "op";
   static kX = "x";
 
-  constructor(op: string, x: Expr) {
+  constructor(public op: string, public x: Expr) {
     this.op = op;
+    this.setX(x);
+  }
+
+  setX(x: Expr) {
+    x.up = new UpRef(this, OpExpr.kX);
     this.x = x;
   }
 }
@@ -116,15 +211,11 @@ class OpExpr {
 type Expr = Ident | ChainExpr;
 
 class StateOpListInsert<T> {
-  head: DList<T>;
-  after: DList<T>;
-  insert: DList<T>;
-
-  constructor(head: DList<T>, after: DList<T>, insert: DList<T>) {
-    this.head = head;
-    this.after = after;
-    this.insert = insert;
-  }
+  constructor(
+    public head: DList<T>,
+    public after: DList<T>,
+    public insert: DList<T>
+  ) {}
 
   unOp(): StateOpListRemove<T> {
     return new StateOpListRemove<T>(this.head, this.insert);
@@ -132,13 +223,7 @@ class StateOpListInsert<T> {
 }
 
 class StateOpListRemove<T> {
-  head: DList<T>;
-  remove: DList<T>;
-
-  constructor(head: DList<T>, remove: DList<T>) {
-    this.head = head;
-    this.remove = remove;
-  }
+  constructor(public head: DList<T>, public remove: DList<T>) {}
 
   unOp(): StateOpListInsert<T> {
     return new StateOpListInsert<T>(this.head, this.remove.prev, this.remove);
@@ -258,11 +343,9 @@ class Render {
 
   updateOpExprInsert(op: StateOpListInsert<OpExpr>) {
     const el = op.insert;
-    el.up = op.head;
     const v = this.rightView(op.after.v!);
     this.va = new ViewAppender(v!);
-    const e = el.v!;
-    this.initExpr0(e, el);
+    this.initExpr0(el.v!);
   }
 
   updateOpExprRemove(op: StateOpListRemove<OpExpr>) {
@@ -275,7 +358,7 @@ class Render {
     } else if (op.k == OpExpr.kX) {
       const v = this.rightView(op.oldV as RenderExpr);
       this.va = new ViewAppender(v!);
-      this.initExpr0(op.v as RenderExpr, new UpRef(op.n, OpExpr.kX));
+      this.initExpr0(op.v as RenderExpr);
       this.exprRemove(op.oldV as RenderExpr);
     }
   }
@@ -313,33 +396,28 @@ class Render {
     return div;
   }
 
-  emptyOpExpr(): OpExpr {
+  initEmptyOpExpr(e: OpExpr) {
     const x = new Ident("");
     const div = Render.emptyDiv("placeholder-opexpr");
     this.va?.append(div);
     x.view = div;
-    return new OpExpr("", x);
+    e.x = x;
   }
 
-  initExpr0(e: RenderExpr, up: any) {
+  initExpr0(e: RenderExpr) {
     if (e instanceof ChainExpr) {
-      e.up = up;
-      e.list.v = this.emptyOpExpr();
-      e.list.up = new UpRef(e, ChainExpr.kList);
+      this.initEmptyOpExpr(e.list.v as OpExpr);
       e.list.forEach((el) => {
-        el.up = e.list;
-        this.initExpr0(el.v!, el);
+        this.initExpr0(el.v!);
       });
     } else if (e instanceof OpExpr) {
-      e.up = up;
       if (!e.opView) {
         const div = Render.newText(e.op);
         this.va?.append(div);
         e.opView = div;
       }
-      this.initExpr0(e.x, new UpRef(e, OpExpr.kX));
+      this.initExpr0(e.x);
     } else if (e instanceof Ident) {
-      e.up = up;
       if (!e.view) {
         const div = Render.newText(e.x);
         this.va?.append(div);
@@ -353,7 +431,7 @@ class Render {
       const div = Render.emptyDiv("placeholder-line");
       e.lines = new LinesView([div]);
       this.va = new ViewAppender(div);
-      this.initExpr0(e, undefined);
+      this.initExpr0(e);
     }
   }
 }
@@ -374,11 +452,18 @@ class State {
     this.oplog.appendV(new StateOpTuple(op, unOp));
 
     if (op instanceof StateOpListInsert) {
-      op.after.insertAfter(op.insert);
+      op.head.insertAfter(op.after, op.insert);
     } else if (op instanceof StateOpListRemove) {
-      op.remove.remove();
+      op.head.remove(op.remove);
     } else if (op instanceof StateOpSetValue) {
-      (op.n as DynObj)[op.k] = op.v;
+      const kSetFunc = "set" + op.k.charAt(0).toUpperCase() + op.k.substring(1);
+      const n = op.n as DynObj;
+      const setFunc = n[kSetFunc];
+      if (setFunc) {
+        setFunc(op.v);
+      } else {
+        n[op.k] = op.v;
+      }
     }
 
     if (this.onUpdate) {
@@ -636,6 +721,42 @@ class TextSelect {
   }
 }
 
+function testTextSelect() {
+  const editor = document.createElement("div");
+  editor.classList.add("editor");
+
+  const background = document.createElement("div");
+  background.classList.add("background");
+  editor.appendChild(background);
+
+  const lines: TextDiv[][] = [];
+  const linedivs: HTMLElement[] = [];
+  for (let i = 0; i < 20; i++) {
+    const div = document.createElement("div");
+    div.classList.add("line");
+
+    const line: TextDiv[] = [];
+    for (let j = 0; j < 20; j++) {
+      const text = Render.newText(j.toString());
+      text.classList.add("word");
+      div.appendChild(text);
+      line.push(text);
+    }
+
+    linedivs.push(div);
+    lines.push(line);
+    editor.appendChild(div);
+  }
+
+  const ts = new TextSelect();
+  ts.select(lines[6][3], lines[6][4]);
+
+  const ts2 = new TextSelect();
+  ts2.select(lines[1][3], lines[5][1]);
+
+  lines[6][3].setText("1133");
+}
+
 {
   const editor = document.createElement("div");
   editor.classList.add("editor");
@@ -672,32 +793,5 @@ class TextSelect {
     state.doOp(op);
   }
 
-  const lines: TextDiv[][] = [];
-  const linedivs: HTMLElement[] = [];
-  for (let i = 0; i < 20; i++) {
-    const div = document.createElement("div");
-    div.classList.add("line");
-
-    const line: TextDiv[] = [];
-    for (let j = 0; j < 20; j++) {
-      const text = Render.newText(j.toString());
-      text.classList.add("word");
-      div.appendChild(text);
-      line.push(text);
-    }
-
-    linedivs.push(div);
-    lines.push(line);
-    editor.appendChild(div);
-  }
-
   document.querySelector<HTMLDivElement>("#app")!.appendChild(editor);
-
-  const ts = new TextSelect();
-  ts.select(lines[6][3], lines[6][4]);
-
-  const ts2 = new TextSelect();
-  ts2.select(lines[1][3], lines[5][1]);
-
-  lines[6][3].setText("1133");
 }
