@@ -277,9 +277,11 @@ class Render {
   static newText(v: string): TextDiv {
     const div = document.createElement("div") as TextDiv;
     div.classList.add("text");
+
     div.clsSep = () => {
       div.classList.toggle("sep");
     };
+
     div.setText = (v) => {
       if (div._text && div._text.textContent == v) {
         return;
@@ -291,6 +293,7 @@ class Render {
       div.appendChild(text);
       div._text = text;
     };
+
     div.setText(v);
     return div;
   }
@@ -720,6 +723,92 @@ class TextSelect {
   }
 }
 
+class TextSelectListener {
+  constructor(
+    public cb: (selElem: HTMLElement, left: number, offset: number) => void
+  ) {}
+
+  handler() {
+    const sel = document.getSelection()!;
+    if (sel.rangeCount == 0) {
+      return;
+    }
+
+    const range0 = sel.getRangeAt(0);
+    const rects = range0.getClientRects();
+    if (rects.length == 0) {
+      return;
+    }
+
+    if (sel.focusNode!.nodeType != Node.TEXT_NODE) {
+      return;
+    }
+
+    let left: number;
+    let offset: number;
+    let selElem: HTMLElement;
+
+    if (sel.focusNode == range0.endContainer) {
+      selElem = range0.endContainer as HTMLElement;
+      left =
+        rects[rects.length - 1].right -
+        selElem.parentElement!.getBoundingClientRect().left;
+      offset = range0.endOffset;
+    } else {
+      selElem = range0.startContainer as HTMLElement;
+      left =
+        rects[0].left - selElem.parentElement!.getBoundingClientRect().left;
+      offset = range0.startOffset;
+    }
+
+    const parentElem = selElem.parentElement!;
+
+    if (parentElem.classList.contains("space") && offset != 0) {
+      const r = document.createRange();
+      r.setStart(selElem, 0);
+      r.setEnd(selElem, 0);
+      const s = window.getSelection()!;
+      s.removeAllRanges();
+      s.addRange(r);
+      return;
+    }
+
+    this.cb(selElem, left, offset);
+  }
+
+  attach() {
+    document.addEventListener("selectionchange", this.handler);
+  }
+
+  detach() {
+    document.removeEventListener("selectionchange", this.handler);
+  }
+}
+
+class Codegen {
+  code: string[] = [];
+
+  private genExpr(e: Expr) {
+    if (e instanceof BinExpr) {
+      e.list.forEachV((e, i) => {
+        if (i > 0) {
+          this.code.push(e.op);
+        }
+        this.genExpr(e.x);
+      });
+    } else if (e instanceof Const) {
+      this.code.push(e.x.toString());
+    }
+  }
+
+  gen(e: Expr): () => string {
+    this.code = [];
+    this.genExpr(e);
+    const body = "return " + this.code.join("");
+    return new Function(body) as () => string;
+  }
+}
+
 function testTextSelect() {
   const editor = document.createElement("div");
   editor.classList.add("editor");
@@ -750,30 +839,6 @@ function testTextSelect() {
   ts2.select(lines[1][3], lines[5][1]);
 
   lines[6][3].setText("1133");
-}
-
-class Codegen {
-  code: string[] = [];
-
-  private genExpr(e: Expr) {
-    if (e instanceof BinExpr) {
-      e.list.forEachV((e, i) => {
-        if (i > 0) {
-          this.code.push(e.op);
-        }
-        this.genExpr(e.x);
-      });
-    } else if (e instanceof Const) {
-      this.code.push(e.x.toString());
-    }
-  }
-
-  gen(e: Expr): () => string {
-    this.code = [];
-    this.genExpr(e);
-    const body = "return " + this.code.join("");
-    return new Function(body) as () => string;
-  }
 }
 
 {
