@@ -130,9 +130,12 @@ class Field {
 
 class DefineStmt {
   up?: any;
-  ty?: ExprType;
   used: WeakSet<VarRef> = new WeakSet<VarRef>();
-  constructor(public x: string, public y: Expr) {}
+  constructor(
+    public x: string,
+    public y: Expr,
+    public ty: ExprType | undefined
+  ) {}
 }
 
 class AssignStmt {
