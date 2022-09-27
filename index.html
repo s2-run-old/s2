@@ -11,6 +11,7 @@
         --text-sel-radius: 5px;
         --background-color: #eee;
         --background-z-index: -8;
+        --text-sep-margin: 8px;
       }
 
       .editor {
@@ -46,10 +47,6 @@
       .editor .word {
         padding-right: 5px;
         padding-left: 5px;
-      }
-
-      .editor .text-edit {
-        /*user-select: text;*/
       }
 
       .editor .text-sel-single-elem {
@@ -101,8 +98,8 @@
       }
 
       .editor .sep {
-        margin-left: 5px;
-        margin-right: 5px;
+        margin-left: var(--text-sep-margin);
+        margin-right: var(--text-sep-margin);
       }
 
       .editor .var-decls {

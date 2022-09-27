@@ -131,6 +131,7 @@ class Field {
 class DefineStmt {
   up?: any;
   used: WeakSet<VarRef> = new WeakSet<VarRef>();
+
   constructor(
     public x: string,
     public y: Expr,
@@ -150,13 +151,9 @@ class ExprStmt {
 
 type Stmt = ExprStmt | DefineStmt | AssignStmt;
 
-class ChainExpr {
-  brace: boolean = false;
+class BinExpr {
   up?: any;
-
   lines?: LinesView;
-  lBraceDiv?: TextDiv;
-  rBraceDiv?: TextDiv;
 
   static kBrace = "brace";
   static kList = "list";
@@ -165,7 +162,7 @@ class ChainExpr {
     public list: DList<OpExpr>,
     public ty: ExprType | undefined = undefined
   ) {
-    this.list.up = new UpRef(this, ChainExpr.kList);
+    this.list.up = new UpRef(this, BinExpr.kList);
     this.list.v = new OpExpr("", new Const(""));
   }
 }
@@ -203,7 +200,7 @@ class OpExpr {
   }
 }
 
-type Expr = Const | ChainExpr | VarRef;
+type Expr = Const | BinExpr | VarRef;
 
 class StateOpListInsert<T> {
   constructor(
@@ -271,6 +268,7 @@ interface TextDiv extends HTMLDivElement {
   _up: any;
   _text: Text;
   setText: (v: string) => void;
+  clsSep: () => void;
 }
 
 class Render {
@@ -279,6 +277,9 @@ class Render {
   static newText(v: string): TextDiv {
     const div = document.createElement("div") as TextDiv;
     div.classList.add("text");
+    div.clsSep = () => {
+      div.classList.toggle("sep");
+    };
     div.setText = (v) => {
       if (div._text && div._text.textContent == v) {
         return;
@@ -306,12 +307,12 @@ class Render {
 
   upLinesView(e: UpExpr): LinesView | undefined {
     return this.upFind(e, (e): boolean => {
-      return e instanceof ChainExpr && e.lines != undefined;
+      return e instanceof BinExpr && e.lines != undefined;
     });
   }
 
   rightView(e: RenderExpr): HTMLElement | undefined {
-    if (e instanceof ChainExpr) {
+    if (e instanceof BinExpr) {
       return this.rightView(e.list.prev.v!);
     } else if (e instanceof OpExpr) {
       return this.rightView(e.x);
@@ -323,7 +324,7 @@ class Render {
   }
 
   exprRemove(e: RenderExpr) {
-    if (e instanceof ChainExpr) {
+    if (e instanceof BinExpr) {
       this.exprRemove(e.list.v!);
       e.list.forEachV((e) => {
         this.exprRemove(e);
@@ -400,7 +401,7 @@ class Render {
   }
 
   initExpr0(e: RenderExpr) {
-    if (e instanceof ChainExpr) {
+    if (e instanceof BinExpr) {
       this.initEmptyOpExpr(e.list.v as OpExpr);
       e.list.forEach((el) => {
         this.initExpr0(el.v!);
@@ -408,6 +409,9 @@ class Render {
     } else if (e instanceof OpExpr) {
       if (!e.opView) {
         const div = Render.newText(e.op);
+        if (e.op != "") {
+          div.clsSep();
+        }
         this.va?.append(div);
         e.opView = div;
       }
@@ -422,7 +426,7 @@ class Render {
   }
 
   initExpr(e: Expr) {
-    if (e instanceof ChainExpr) {
+    if (e instanceof BinExpr) {
       const div = Render.emptyDiv("placeholder-line");
       e.lines = new LinesView([div]);
       this.va = new ViewAppender(div);
@@ -752,7 +756,7 @@ class Codegen {
   code: string[] = [];
 
   private genExpr(e: Expr) {
-    if (e instanceof ChainExpr) {
+    if (e instanceof BinExpr) {
       e.list.forEachV((e, i) => {
         if (i > 0) {
           this.code.push(e.op);
@@ -784,7 +788,7 @@ class Codegen {
 
   const firstIdent = new Const(1, ExprTypes.intType);
   const firstOpExpr = new OpExpr("", firstIdent);
-  const e = new ChainExpr(
+  const e = new BinExpr(
     DList.newList<OpExpr>([
       firstOpExpr,
       new OpExpr("+", new Const(2, ExprTypes.intType)),
