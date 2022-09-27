@@ -2,15 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link href="/plang.svg" rel="icon" type="image/svg+xml" />
+    <link href="/s2.png" rel="icon" type="image/svg+xml" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>S²</title>
     <style>
-      #app {
-        height: 600px;
-        margin: 20px;
-      }
-
       :root {
         --text-sel-color: #abc;
         --text-sel-radius: 5px;
@@ -19,15 +14,11 @@
       }
 
       .editor {
-        border: 1px solid brown;
-        border-radius: 5px;
-
+        width: 50%;
+        height: calc(100vh - 20px * 2);
         padding: 20px;
         overflow: hidden;
         position: relative;
-        /*background: var(--background-color);*/
-        /*user-select: none;*/
-        /*cursor: default;*/
       }
 
       .editor .background {
@@ -206,10 +197,32 @@
           background-color: transparent;
         }
       }
+
+      .app {
+        display: flex;
+        flex-direction: row;
+      }
+
+      .preview {
+        width: 50%;
+        padding: 20px;
+        font-family: Whitney, "Microsoft YaHei New", 微软雅黑, "Microsoft Yahei",
+          "Microsoft JhengHei", 宋体, SimSun, "Helvetica Neue", Helvetica, Arial,
+          sans-serif;
+      }
+
+      body {
+        margin: 0px;
+      }
     </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div class="app">
+      <div class="editor">
+        <div class="background"></div>
+      </div>
+      <div class="preview"></div>
+    </div>
     <script src="/main.ts" type="module"></script>
   </body>
 </html>

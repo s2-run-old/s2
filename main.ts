@@ -1,5 +1,3 @@
-import { Op } from "./state";
-
 interface DynObj {
   [key: string]: any;
 }
@@ -64,25 +62,23 @@ class DList<T> {
     return insert;
   }
 
-  forEach(cb: (x: DList<T>) => void) {
+  forEach(cb: (x: DList<T>, i: number) => void) {
+    let i = 0;
     for (let p = this.next; p != this; p = p.next) {
-      cb(p);
+      cb(p, i);
+      i++;
     }
   }
 
-  forEachV(cb: (x: T) => void) {
-    this.forEach((x) => cb(x.v!));
+  forEachV(cb: (x: T, i: number) => void) {
+    this.forEach((x, i) => cb(x.v!, i));
   }
 }
 
-class ExprTypeRef {
-  constructor(public name: string, public t: ExprType) {}
-}
-
-type ExprType = StructType | StringType | IntType;
+type ExprType = StructType | StringType | IntType | InvalidType;
 
 class StructType {
-  constructor(public fields: ExprTypeRef[] = []) {}
+  constructor(public fields: ExprType[] = []) {}
 }
 
 class IntType {
@@ -106,10 +102,12 @@ class ExprTypes {
       case "int": {
         return ExprTypes.intType;
       }
+
       case "string": {
         return ExprTypes.stringType;
       }
     }
+
     return undefined;
   }
 }
@@ -117,7 +115,7 @@ class ExprTypes {
 class Func {
   constructor(
     public params: DList<Field>,
-    public ret: ExprTypeRef,
+    public ret: ExprType,
     public body: DList<Stmt>
   ) {
     this.params.up = this;
@@ -127,13 +125,12 @@ class Func {
 
 class Field {
   up?: any;
-  used: WeakSet<VarRef> = new WeakSet<VarRef>();
-  constructor(public x: string, public t: ExprTypeRef) {}
+  constructor(public x: string, public ty: ExprType) {}
 }
 
 class DefineStmt {
   up?: any;
-  typ?: ExprTypeRef;
+  ty?: ExprType;
   used: WeakSet<VarRef> = new WeakSet<VarRef>();
   constructor(public x: string, public y: Expr) {}
 }
@@ -151,7 +148,6 @@ class ExprStmt {
 type Stmt = ExprStmt | DefineStmt | AssignStmt;
 
 class ChainExpr {
-  list: DList<OpExpr>;
   brace: boolean = false;
   up?: any;
 
@@ -163,31 +159,27 @@ class ChainExpr {
   static kList = "list";
 
   constructor(
-    listInit: OpExpr[] = [],
-    public typ: ExprTypeRef | undefined = undefined
+    public list: DList<OpExpr>,
+    public ty: ExprType | undefined = undefined
   ) {
-    this.list = DList.newList<OpExpr>(listInit);
     this.list.up = new UpRef(this, ChainExpr.kList);
-    this.list.v = new OpExpr("", new Ident(""));
+    this.list.v = new OpExpr("", new Const(""));
   }
 }
 
 class VarRef {
   up?: any;
   view?: TextDiv;
+
   constructor(public x: DefineStmt | Field) {}
 }
 
-class Ident {
+class Const {
   up?: any;
   view?: TextDiv;
-  typ?: ExprTypeRef;
 
   static kX = "x";
-
-  constructor(public x: string) {
-    this.x = x;
-  }
+  constructor(public x: any, public ty: ExprType | undefined = undefined) {}
 }
 
 class OpExpr {
@@ -208,7 +200,7 @@ class OpExpr {
   }
 }
 
-type Expr = Ident | ChainExpr;
+type Expr = Const | ChainExpr | VarRef;
 
 class StateOpListInsert<T> {
   constructor(
@@ -320,7 +312,7 @@ class Render {
       return this.rightView(e.list.prev.v!);
     } else if (e instanceof OpExpr) {
       return this.rightView(e.x);
-    } else if (e instanceof Ident) {
+    } else if (e instanceof Const) {
       return e.view;
     } else {
       return undefined;
@@ -336,7 +328,7 @@ class Render {
     } else if (e instanceof OpExpr) {
       e.opView?.remove();
       this.exprRemove(e.x);
-    } else if (e instanceof Ident) {
+    } else if (e instanceof Const) {
       e.view?.remove();
     }
   }
@@ -363,8 +355,8 @@ class Render {
     }
   }
 
-  updateIdentSetValue(op: StateOpSetValue<Ident>) {
-    if (op.k == Ident.kX) {
+  updateIdentSetValue(op: StateOpSetValue<Const>) {
+    if (op.k == Const.kX) {
       op.n.view!.innerText = op.v as string;
     }
   }
@@ -384,8 +376,8 @@ class Render {
       const n = op.n;
       if (n instanceof OpExpr) {
         this.updateOpExprSetValue(op as StateOpSetValue<OpExpr>);
-      } else if (n instanceof Ident) {
-        this.updateIdentSetValue(op as StateOpSetValue<Ident>);
+      } else if (n instanceof Const) {
+        this.updateIdentSetValue(op as StateOpSetValue<Const>);
       }
     }
   }
@@ -397,7 +389,7 @@ class Render {
   }
 
   initEmptyOpExpr(e: OpExpr) {
-    const x = new Ident("");
+    const x = new Const("");
     const div = Render.emptyDiv("placeholder-opexpr");
     this.va?.append(div);
     x.view = div;
@@ -417,9 +409,9 @@ class Render {
         e.opView = div;
       }
       this.initExpr0(e.x);
-    } else if (e instanceof Ident) {
+    } else if (e instanceof Const) {
       if (!e.view) {
-        const div = Render.newText(e.x);
+        const div = Render.newText(e.x.toString());
         this.va?.append(div);
         e.view = div;
       }
@@ -725,10 +717,6 @@ function testTextSelect() {
   const editor = document.createElement("div");
   editor.classList.add("editor");
 
-  const background = document.createElement("div");
-  background.classList.add("background");
-  editor.appendChild(background);
-
   const lines: TextDiv[][] = [];
   const linedivs: HTMLElement[] = [];
   for (let i = 0; i < 20; i++) {
@@ -757,22 +745,32 @@ function testTextSelect() {
   lines[6][3].setText("1133");
 }
 
+class Codegen {
+  code: string[] = [];
+
+  private genExpr(e: Expr) {
+    if (e instanceof ChainExpr) {
+      e.list.forEachV((e, i) => {
+        if (i > 0) {
+          this.code.push(e.op);
+        }
+        this.genExpr(e.x);
+      });
+    } else if (e instanceof Const) {
+      this.code.push(e.x.toString());
+    }
+  }
+
+  gen(e: Expr): () => string {
+    this.code = [];
+    this.genExpr(e);
+    const body = "return " + this.code.join("");
+    return new Function(body) as () => string;
+  }
+}
+
 {
-  const editor = document.createElement("div");
-  editor.classList.add("editor");
-
-  const background = document.createElement("div");
-  background.classList.add("background");
-  editor.appendChild(background);
-
-  const firstIdent = new Ident("1");
-  const firstOpExpr = new OpExpr("", firstIdent);
-
-  const e = new ChainExpr([
-    firstOpExpr,
-    new OpExpr("+", new Ident("2")),
-    new OpExpr("+", new Ident("3")),
-  ]);
+  const editor = document.querySelector<HTMLDivElement>(".editor")!;
 
   const state = new State();
   const render = new Render();
@@ -781,17 +779,34 @@ function testTextSelect() {
     render.update(op);
   };
 
+  const firstIdent = new Const(1, ExprTypes.intType);
+  const firstOpExpr = new OpExpr("", firstIdent);
+  const e = new ChainExpr(
+    DList.newList<OpExpr>([
+      firstOpExpr,
+      new OpExpr("+", new Const(2, ExprTypes.intType)),
+      new OpExpr("+", new Const(3, ExprTypes.intType)),
+    ]),
+    ExprTypes.intType
+  );
+
   render.initExpr(e);
   editor.appendChild(e.lines!.div);
 
-  for (let i = 0; i < 20; i++) {
-    const op = new StateOpListInsert(
-      e.list,
-      e.list.prev,
-      DList.new<OpExpr>(new OpExpr("+", new Ident((i + 10).toString())))
-    );
-    state.doOp(op);
-  }
+  // for (let i = 0; i < 20; i++) {
+  //   const op = new StateOpListInsert(
+  //     e.list,
+  //     e.list.prev,
+  //     DList.new<OpExpr>(new OpExpr("+", new Ident((i + 10).toString())))
+  //   );
+  //   state.doOp(op);
+  // }
 
-  document.querySelector<HTMLDivElement>("#app")!.appendChild(editor);
+  const cg = new Codegen();
+  const fn = cg.gen(e);
+  const ret = fn();
+  console.log(ret);
+
+  const preview = document.querySelector<HTMLDivElement>(".preview")!;
+  preview.innerText = ret.toString();
 }
