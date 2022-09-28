@@ -761,27 +761,26 @@ class TextSelectListener {
       offset = range0.startOffset;
     }
 
-    const parentElem = selElem.parentElement!;
-
-    if (parentElem.classList.contains("space") && offset != 0) {
-      const r = document.createRange();
-      r.setStart(selElem, 0);
-      r.setEnd(selElem, 0);
-      const s = window.getSelection()!;
-      s.removeAllRanges();
-      s.addRange(r);
-      return;
-    }
+    // const parentElem = selElem.parentElement!;
+    // if (parentElem.classList.contains("space") && offset != 0) {
+    //   const r = document.createRange();
+    //   r.setStart(selElem, 0);
+    //   r.setEnd(selElem, 0);
+    //   const s = window.getSelection()!;
+    //   s.removeAllRanges();
+    //   s.addRange(r);
+    //   return;
+    // }
 
     this.cb(selElem, left, offset);
   }
 
   attach() {
-    document.addEventListener("selectionchange", this.handler);
+    document.addEventListener("selectionchange", () => this.handler());
   }
 
   detach() {
-    document.removeEventListener("selectionchange", this.handler);
+    document.removeEventListener("selectionchange", () => this.handler());
   }
 }
 
@@ -881,4 +880,11 @@ function testTextSelect() {
 
   const preview = document.querySelector<HTMLDivElement>(".preview")!;
   preview.innerText = ret.toString();
+
+  const tsl = new TextSelectListener(
+    (selElem: HTMLElement, left: number, offset: number) => {
+      console.log("sel", selElem);
+    }
+  );
+  tsl.attach();
 }
