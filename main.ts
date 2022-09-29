@@ -741,6 +741,16 @@ class TextSelectListener {
     public cb: (start: TextSelectEndPoint, end: TextSelectEndPoint) => void
   ) {}
 
+  parentTextDiv(e: HTMLElement): TextDiv | undefined {
+    while (e) {
+      if (e.classList && e.classList.contains("text")) {
+        return e as TextDiv;
+      }
+      e = e.parentElement!;
+    }
+    return undefined;
+  }
+
   handler() {
     const sel = document.getSelection()!;
     if (sel.rangeCount == 0) {
@@ -753,8 +763,8 @@ class TextSelectListener {
       return;
     }
 
-    const startDiv = range0.startContainer.parentElement as TextDiv;
-    const endDiv = range0.endContainer.parentElement as TextDiv;
+    const startDiv = this.parentTextDiv(range0.startContainer as HTMLElement)!;
+    const endDiv = this.parentTextDiv(range0.endContainer as HTMLElement)!;
     if (
       !startDiv.classList.contains("text") ||
       !endDiv.classList.contains("text")
@@ -860,6 +870,13 @@ function testEditor() {
     DList.newList<OpExpr>([
       firstOpExpr,
       new OpExpr("+", new Const(2, ExprTypes.intType)),
+      new OpExpr("+", new Const(3, ExprTypes.intType)),
+      new OpExpr("+", new Const(4, ExprTypes.intType)),
+      new OpExpr("+", new Const(5, ExprTypes.intType)),
+      new OpExpr("+", new Const(6, ExprTypes.intType)),
+      new OpExpr("+", new Const(7, ExprTypes.intType)),
+      new OpExpr("+", new Const(8, ExprTypes.intType)),
+      new OpExpr("+", new Const(9, ExprTypes.intType)),
       new OpExpr("+", new Const(3122, ExprTypes.intType)),
     ]),
     ExprTypes.intType
@@ -877,6 +894,13 @@ function testEditor() {
   //   state.doOp(op);
   // }
 
+  const ts = new TextSelect();
+
+  const tsl = new TextSelectListener((start, end) => {
+    ts.select(start.div, end.div);
+  });
+  tsl.attach();
+
   const cg = new Codegen();
   const fn = cg.gen(e);
   const ret = fn();
@@ -885,4 +909,4 @@ function testEditor() {
   preview.innerText = ret.toString();
 }
 
-testTextSelect();
+testEditor();
