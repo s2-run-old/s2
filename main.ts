@@ -652,12 +652,15 @@ class TextSelect {
       s.l = ns.l;
       s.l.prepend(s.divL!);
     }
+
     if (s.r != ns.r) {
       s.r = ns.r;
       s.r.prepend(s.divR!);
     }
+
     if (s.lineL != ns.lineL || s.lineR != ns.lineR) {
       const newid = Math.random();
+
       this.forEachMidLine(ns, (line) => {
         const div = this.midLineDiv(line);
         if (div) {
@@ -666,6 +669,7 @@ class TextSelect {
           line.prepend(this.newMidLineDiv(ns, newid));
         }
       });
+
       this.forEachMidLine(s, (line) => {
         const div = this.midLineDiv(line);
         if (div) {
@@ -674,6 +678,9 @@ class TextSelect {
           }
         }
       });
+
+      s.lineL = ns.lineL;
+      s.lineR = ns.lineR;
     }
   }
 
@@ -712,7 +719,7 @@ class TextSelect {
     }
   }
 
-  select(l: HTMLElement, r: HTMLElement = l) {
+  select(l: TextDiv, r: TextDiv = l) {
     const ns = this.newState(l, r);
     if (this.s) {
       this.renderUpdate(this.s, ns);
@@ -723,9 +730,15 @@ class TextSelect {
   }
 }
 
+type TextSelectEndPoint = {
+  div: TextDiv;
+  off: number;
+  charAt: number;
+};
+
 class TextSelectListener {
   constructor(
-    public cb: (selElem: HTMLElement, left: number, offset: number) => void
+    public cb: (start: TextSelectEndPoint, end: TextSelectEndPoint) => void
   ) {}
 
   handler() {
@@ -740,39 +753,27 @@ class TextSelectListener {
       return;
     }
 
-    if (sel.focusNode!.nodeType != Node.TEXT_NODE) {
+    const startDiv = range0.startContainer.parentElement as TextDiv;
+    const endDiv = range0.endContainer.parentElement as TextDiv;
+    if (
+      !startDiv.classList.contains("text") ||
+      !endDiv.classList.contains("text")
+    ) {
       return;
     }
 
-    let left: number;
-    let offset: number;
-    let selElem: HTMLElement;
+    const start = <TextSelectEndPoint>{
+      div: startDiv,
+      charAt: range0.startOffset,
+      off: rects[0].left - startDiv.getBoundingClientRect()!.left,
+    };
+    const end = <TextSelectEndPoint>{
+      div: endDiv,
+      charAt: range0.endOffset,
+      off: rects[rects.length - 1].right - endDiv.getBoundingClientRect()!.left,
+    };
 
-    if (sel.focusNode == range0.endContainer) {
-      selElem = range0.endContainer as HTMLElement;
-      left =
-        rects[rects.length - 1].right -
-        selElem.parentElement!.getBoundingClientRect().left;
-      offset = range0.endOffset;
-    } else {
-      selElem = range0.startContainer as HTMLElement;
-      left =
-        rects[0].left - selElem.parentElement!.getBoundingClientRect().left;
-      offset = range0.startOffset;
-    }
-
-    // const parentElem = selElem.parentElement!;
-    // if (parentElem.classList.contains("space") && offset != 0) {
-    //   const r = document.createRange();
-    //   r.setStart(selElem, 0);
-    //   r.setEnd(selElem, 0);
-    //   const s = window.getSelection()!;
-    //   s.removeAllRanges();
-    //   s.addRange(r);
-    //   return;
-    // }
-
-    this.cb(selElem, left, offset);
+    this.cb(start, end);
   }
 
   attach() {
@@ -809,8 +810,7 @@ class Codegen {
 }
 
 function testTextSelect() {
-  const editor = document.createElement("div");
-  editor.classList.add("editor");
+  const editor = document.querySelector<HTMLDivElement>(".editor")!;
 
   const lines: TextDiv[][] = [];
   const linedivs: HTMLElement[] = [];
@@ -820,7 +820,7 @@ function testTextSelect() {
 
     const line: TextDiv[] = [];
     for (let j = 0; j < 20; j++) {
-      const text = Render.newText(j.toString());
+      const text = Render.newText("000" + j.toString());
       text.classList.add("word");
       div.appendChild(text);
       line.push(text);
@@ -832,15 +832,19 @@ function testTextSelect() {
   }
 
   const ts = new TextSelect();
-  ts.select(lines[6][3], lines[6][4]);
+  // ts.select(lines[6][3], lines[6][4]);
+  //
+  // const ts2 = new TextSelect();
+  // ts2.select(lines[1][3], lines[5][1]);
+  // lines[6][3].setText("1133");
 
-  const ts2 = new TextSelect();
-  ts2.select(lines[1][3], lines[5][1]);
-
-  lines[6][3].setText("1133");
+  const tsl = new TextSelectListener((start, end) => {
+    ts.select(start.div, end.div);
+  });
+  tsl.attach();
 }
 
-{
+function testEditor() {
   const editor = document.querySelector<HTMLDivElement>(".editor")!;
 
   const state = new State();
@@ -856,7 +860,7 @@ function testTextSelect() {
     DList.newList<OpExpr>([
       firstOpExpr,
       new OpExpr("+", new Const(2, ExprTypes.intType)),
-      new OpExpr("+", new Const(3, ExprTypes.intType)),
+      new OpExpr("+", new Const(3122, ExprTypes.intType)),
     ]),
     ExprTypes.intType
   );
@@ -876,15 +880,9 @@ function testTextSelect() {
   const cg = new Codegen();
   const fn = cg.gen(e);
   const ret = fn();
-  console.log(ret);
 
   const preview = document.querySelector<HTMLDivElement>(".preview")!;
   preview.innerText = ret.toString();
-
-  const tsl = new TextSelectListener(
-    (selElem: HTMLElement, left: number, offset: number) => {
-      console.log("sel", selElem);
-    }
-  );
-  tsl.attach();
 }
+
+testTextSelect();
