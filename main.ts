@@ -153,7 +153,7 @@ type Stmt = ExprStmt | DefineStmt | AssignStmt;
 
 class BinExpr {
   up?: any;
-  lines?: LinesView;
+  viewInited = false;
 
   static kBrace = "brace";
   static kList = "list";
@@ -170,6 +170,7 @@ class BinExpr {
 class VarRef {
   up?: any;
   view?: TextDiv;
+  viewInited = false;
 
   constructor(public x: DefineStmt | Field) {}
 }
@@ -177,6 +178,7 @@ class VarRef {
 class Const {
   up?: any;
   view?: TextDiv;
+  viewInited = false;
 
   static kX = "x";
   constructor(public x: any, public ty: ExprType | undefined = undefined) {}
@@ -185,6 +187,7 @@ class Const {
 class OpExpr {
   up?: any;
   opView?: TextDiv;
+  viewInited = false;
 
   static kOp = "op";
   static kX = "x";
@@ -274,9 +277,10 @@ interface TextDiv extends HTMLDivElement {
 class Render {
   va?: ViewAppender;
 
-  static newText(v: string): TextDiv {
+  static newText(v: string, up: any = undefined): TextDiv {
     const div = document.createElement("div") as TextDiv;
     div.classList.add("text");
+    div._up = up;
 
     div.clsSep = () => {
       div.classList.toggle("sep");
@@ -306,12 +310,6 @@ class Render {
       e = e.up;
     }
     return undefined;
-  }
-
-  upLinesView(e: UpExpr): LinesView | undefined {
-    return this.upFind(e, (e): boolean => {
-      return e instanceof BinExpr && e.lines != undefined;
-    });
   }
 
   rightView(e: RenderExpr): HTMLElement | undefined {
@@ -344,7 +342,7 @@ class Render {
     const el = op.insert;
     const v = this.rightView(op.after.v!);
     this.va = new ViewAppender(v!);
-    this.initExpr0(el.v!);
+    this.initExpr(el.v!);
   }
 
   updateOpExprRemove(op: StateOpListRemove<OpExpr>) {
@@ -357,7 +355,7 @@ class Render {
     } else if (op.k == OpExpr.kX) {
       const v = this.rightView(op.oldV as RenderExpr);
       this.va = new ViewAppender(v!);
-      this.initExpr0(op.v as RenderExpr);
+      this.initExpr(op.v as RenderExpr);
       this.exprRemove(op.oldV as RenderExpr);
     }
   }
@@ -389,6 +387,21 @@ class Render {
     }
   }
 
+  walkExprTextDiv(e: Expr, cb: (t: TextDiv | undefined) => void) {
+    if (e instanceof BinExpr) {
+      e.list.forEachV((e) => {
+        cb(e.opView);
+        this.walkExprTextDiv(e.x, cb);
+      });
+    } else if (e instanceof OpExpr) {
+      cb(e.opView);
+      cb(e.view);
+      this.walkExprTextDiv(e.x, cb);
+    } else if (e instanceof Const) {
+      cb(e.view);
+    }
+  }
+
   static emptyDiv(cls: string): TextDiv {
     const div = Render.newText("");
     div.classList.add(cls);
@@ -398,43 +411,33 @@ class Render {
   initEmptyOpExpr(e: OpExpr) {
     const x = new Const("");
     const div = Render.emptyDiv("placeholder-opexpr");
-    this.va?.append(div);
     x.view = div;
     e.x = x;
   }
 
-  initExpr0(e: RenderExpr) {
+  initExpr(e: RenderExpr) {
+    if (e.viewInited) {
+      return;
+    }
+
     if (e instanceof BinExpr) {
       this.initEmptyOpExpr(e.list.v as OpExpr);
       e.list.forEach((el) => {
-        this.initExpr0(el.v!);
+        this.initExpr(el.v!);
       });
     } else if (e instanceof OpExpr) {
-      if (!e.opView) {
-        const div = Render.newText(e.op);
-        if (e.op != "") {
-          div.clsSep();
-        }
-        this.va?.append(div);
-        e.opView = div;
+      const div = Render.newText(e.op, new UpRef(e, OpExpr.kOp));
+      if (e.op != "") {
+        div.clsSep();
       }
-      this.initExpr0(e.x);
+      e.opView = div;
+      this.initExpr(e.x);
     } else if (e instanceof Const) {
-      if (!e.view) {
-        const div = Render.newText(e.x.toString());
-        this.va?.append(div);
-        e.view = div;
-      }
+      const div = Render.newText(e.x.toString(), new UpRef(e, Const.kX));
+      e.view = div;
     }
-  }
 
-  initExpr(e: Expr) {
-    if (e instanceof BinExpr) {
-      const div = Render.emptyDiv("placeholder-line");
-      e.lines = new LinesView([div]);
-      this.va = new ViewAppender(div);
-      this.initExpr0(e);
-    }
+    e.viewInited = true;
   }
 }
 
@@ -765,10 +768,7 @@ class TextSelectListener {
 
     const startDiv = this.parentTextDiv(range0.startContainer as HTMLElement)!;
     const endDiv = this.parentTextDiv(range0.endContainer as HTMLElement)!;
-    if (
-      !startDiv.classList.contains("text") ||
-      !endDiv.classList.contains("text")
-    ) {
+    if (!startDiv || !endDiv) {
       return;
     }
 
@@ -872,9 +872,9 @@ function testEditor() {
       new OpExpr("+", new Const(2, ExprTypes.intType)),
       new OpExpr("+", new Const(3, ExprTypes.intType)),
       new OpExpr("+", new Const(4, ExprTypes.intType)),
-      new OpExpr("+", new Const(5, ExprTypes.intType)),
-      new OpExpr("+", new Const(6, ExprTypes.intType)),
-      new OpExpr("+", new Const(7, ExprTypes.intType)),
+      new OpExpr("-", new Const(5, ExprTypes.intType)),
+      new OpExpr("-", new Const(6, ExprTypes.intType)),
+      new OpExpr("-", new Const(7, ExprTypes.intType)),
       new OpExpr("+", new Const(8, ExprTypes.intType)),
       new OpExpr("+", new Const(9, ExprTypes.intType)),
       new OpExpr("+", new Const(3122, ExprTypes.intType)),
@@ -882,14 +882,15 @@ function testEditor() {
     ExprTypes.intType
   );
 
+  // const div = Render.emptyDiv("placeholder-line");
   render.initExpr(e);
-  editor.appendChild(e.lines!.div);
+  // editor.appendChild(e.lines!.div);
 
   // for (let i = 0; i < 20; i++) {
   //   const op = new StateOpListInsert(
   //     e.list,
   //     e.list.prev,
-  //     DList.new<OpExpr>(new OpExpr("+", new Ident((i + 10).toString())))
+  //     DList.new<OpExpr>(new OpExpr("+", new Const((i + 10).toString())))
   //   );
   //   state.doOp(op);
   // }
